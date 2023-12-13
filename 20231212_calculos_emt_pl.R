@@ -146,7 +146,7 @@ gblDistrict <- sqlQuery(con2, "SELECT TOP (1000) [disID]
   FROM [DCCPPlatform].[dbo].[gblDistrict]")
 
 
-prcPOHeader <- sqlQuery(con2, "SELECT TOP (1000) [porID]
+prcPOHeader <- sqlQuery(con2, "SELECT TOP (10000) [porID]
       ,[porRequisition]
       ,[porSourceDocumentType]
       ,[porSourceDocumentNumber]
@@ -324,6 +324,13 @@ prcRFBHeader <- sqlQuery(con2, "SELECT TOP (1000) [rbhID]
 # 3. Probar la conjetura respecto de qué el campo porShipAddress se modifica 
 # siempre y cuándo la dirección de despacho seaa distinta de la que se provee
 #  por default, ya que en dicho caso bastaría con modificar el formulario 
+#  4. Cruzar la información sobre dirección de envío desde diferentes fuentes, 
+#  por ejemplo, comparar la información de las órdenes de compra con las
+#  solicitudes de cotización del módulo de compra ágil y la informacción contenida
+#  en licitaciones
+
+
+
 
 
 
