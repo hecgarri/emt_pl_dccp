@@ -318,6 +318,40 @@ prcRFBHeader <- sqlQuery(con2, "SELECT TOP (1000) [rbhID]
   FROM [DCCPProcurement].[dbo].[prcRFBHeader]")
 
 
+SolicitudCotizacion <- sqlQuery(con2, "SELECT TOP (1000) SC.[Id]
+      ,[CodigoSolicitudCotizacion]
+      ,[CodigoOrganismo]
+      ,[Nombre]
+      ,[Descripcion]
+      ,[FechaApertura]
+      ,[FechaCierre]
+      ,[FechaCreacion]
+      ,[FechaSeleccion]
+      ,[NombreContacto]
+      ,[TelefonoContacto]
+      ,[EmailContacto]
+      ,[OtrosAntecedentes]
+      ,[idEstado]
+      ,[FechaPublicacion]
+      ,[MontoDisponible]
+      ,[CodigoEmpresa]
+      ,[CodigoRegion] -- Prioridad 
+      ,[CodigoComuna]
+      ,[Direccion] -- Segunda prioridad 
+      ,[PlazoEntrega]
+      ,[FiltroTamanoEmpresa]
+      ,[FiltroRegionNotificacion]
+      ,[CodigoRegionFiltro]
+      ,[Moneda]
+      ,[EsMultaSancion]
+      ,[Invitaciones]
+      ,HEAD.porCode
+      FROM [DCCPCotizacion].[dbo].[SolicitudCotizacion] as SC
+      inner join [DCCPCotizacion].[dbo].[RelacionOC] as ROC ON ROC.IdSolicitudCotizacion = SC.Id
+      inner join DCCPProcurement.dbo.prcPOHeader as HEAD ON HEAD.porID=ROC.porId
+      WHERE YEAR(FechaPublicacion) = 2023")
+
+
 # Plan de análisis: 
 # 1. cruzar las tablas gblEnterpriseAddress con prcPOHeader, a través de los campos eadCode y porShipAddress
 # 2. Verificar en qué proporción coinciden los campos porShipAddress y porInVoiceAddress
