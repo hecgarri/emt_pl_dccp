@@ -394,6 +394,30 @@ prcPOStaticRecipient <- sqlQuery(con2, "SELECT TOP (1000) [psrID]
                         FROM [DCCPProcurement].[dbo].[prcPOStaticRecipient]"
 )
 
+cotizacion <- sqlQuery(con2, "SELECT TOP (1000) [Id]
+      ,[SolicitudCotizacionId]
+      ,[CodigoEmpresa]
+      ,[CodigoSucursalEmpresa]
+      ,[FechaCreacion]
+      ,[FechaModificacion]
+      ,[EstadoId]
+      ,[Activo]
+      ,[Moneda]
+      ,[EsProveedorSeleccionado]
+      ,[Descripcion]
+      ,[MontoTotal]
+      ,[CodigoUsuario]
+      ,[MontoNeto]
+      ,[TotalImpuesto]
+      ,[PorcentajeImpuesto]
+      ,[CodigoImpuesto]
+      ,[FechaVigencia]
+      ,[DeclaracionJurada]
+      ,[MontoDespacho]
+      ,[NoSeleccionable]
+      ,[EsOfertaParcial]
+  FROM [DCCPCotizacion].[dbo].[Cotizacion]")
+
 sii_atrib_2021 <- sqlQuery(con3, "SELECT TOP (1000) 
                                  [AÑO_COMERCIAL]
                                 ,[RUT]
@@ -428,122 +452,126 @@ sii_atrib_2021 <- sqlQuery(con3, "SELECT TOP (1000)
 
 start <- Sys.time()
 
-data <- sqlQuery(con2, "
-             SELECT A.*
-             ,SII.CODIGO_ACTIVIDAD_ECONOMICA
-             ,SII.DESCRIPCION_ACTIVIDAD_ECONOMICA
-             
-             ,(CASE 
-                WHEN A.psrSellerCity = Subquery.[Región \n Unidad de Compra] THEN 1 
-                ELSE 0 END) [Proveedor Local]
-             FROM (
-                 SELECT DISTINCT
-                 
-                  Subquery.*
 
-                  ,PO.porName
-                  --,PO.porDescription
-                  ,PO.porTotalAmount
-                  --,PI.poiName
-                  --,PI.poiDescription
-                  ,SR2.psrSellerOrganizationLegalName  [Nombre Proveedor (sucursal)]
-                  ,SR2.psrSellerActivity [Actividad Proveedor]
-                  ,[porSellerOrganization]
-                  ,LOWER(REPLACE(REPLACE(SR2.psrSellerTaxID,'.',''),'-','')) [Rut Proveedor] 
-                  ,LEFT(LOWER(REPLACE(REPLACE(SR2.psrSellerTaxID,'.',''),'-',''))
-                        ,LEN(LOWER(REPLACE(REPLACE(SR2.psrSellerTaxID,'.',''),'-','')))-1) [Rut_numero]
-                  ,RIGHT(LOWER(REPLACE(REPLACE(SR2.psrSellerTaxID,'.',''),'-','')),1) [Rut_dv]
-                  ,SR2.psrSellerOrganizationLegalName  [Razón Social Proveedor]
-                  ,SR2.psrSellerActivity [Actividad del Proveedor \n (prcPOStaticRecipient)] 
-                  ,SR2.psrSellerAddress [Dirección \n Proveedor \n (prcPOStaticRecipient)]
-                  ,SR2.psrSellerCity [Región \n Proveedor \n (prcPOStaticRecipient)]
-                  ,SR2.psrSellerDistrict [Comuna \n Proveedor \n (prcPOStaticRecipient)]
-             
-                  ,CASE
-                      WHEN PATINDEX('%Tarapacá%', [SII.DESCRIPCION_REGION]) > 0 THEN 1
-                      WHEN PATINDEX('%II REGION DE ANTOFAGASTA%', [SII.DESCRIPCION_REGION]) > 0 THEN 2
-                      WHEN PATINDEX('%III REGION DE ATACAMA%', [SII.DESCRIPCION_REGION]) > 0 THEN 3
-                      WHEN PATINDEX('%IV REGION COQUIMBO%', [SII.DESCRIPCION_REGION]) > 0 THEN 4
-                      WHEN PATINDEX('%V REGION VALPARAISO%', [SII.DESCRIPCION_REGION]) > 0 THEN 5
-                      WHEN PATINDEX('%VII REGION DEL MAULE%', [SII.DESCRIPCION_REGION]) > 0 THEN 7
-                      WHEN PATINDEX('%VIII REGION DEL BIO BIO%', [SII.DESCRIPCION_REGION]) > 0 THEN 8
-                      WHEN PATINDEX('%IX REGION DE LA ARAUCANIA%', [SII.DESCRIPCION_REGION]) > 0 THEN 9
-                      WHEN PATINDEX('%X REGION LOS LAGOS%', [SII.DESCRIPCION_REGION]) > 0 THEN 10
-                      WHEN PATINDEX('%XI REGION AYSEN DEL GENERAL CARLOS IBAÑEZ DEL CAMPO%', [SII.DESCRIPCION_REGION]) > 0 THEN 11
-                      WHEN PATINDEX('%XII REGION DE MAGALLANES Y LA ANTARTICA CHILENA%', [SII.DESCRIPCION_REGION]) > 0 THEN 12
-                      WHEN PATINDEX('%XIII REGION METROPOLITANA%', [SII.DESCRIPCION_REGION]) > 0 THEN 13
-                      WHEN PATINDEX('%XIV REGION DE LOS RIOS%', [SII.DESCRIPCION_REGION]) > 0 THEN 14
-                      WHEN PATINDEX('%XV REGION ARICA Y PARINACOTA%', [SII.DESCRIPCION_REGION]) > 0 THEN 15
-                      WHEN PATINDEX('%XVI REGION DE ÑUBLE%', [SII.DESCRIPCION_REGION]) > 0 THEN 16
-                      WHEN PATINDEX('%Sin Información%', [SII.DESCRIPCION_REGION]) > 0 THEN 0
-                      ELSE 6
-                    END AS [id_region_prov]
-                 
-                  
-                 /*
-                 , EA2.eadName [Nombre dirección sucursal]
-                  , EA2.eadAddress [Dirección \n Sucursal]
-                  , C2.citName [Región \n Sucursal]
-                  , D2.disName [Comuna \n Sucursal]
-                  , ST.pstDescription
-                  ,[porShipmentType] -- Tipo de Despacho
-                  ,[porInvoiceAddress] -- Dirección de facturación 
-                  ,[porShipAddress] -- Dirección de despacho
-                  ,[porShipInstructions]
-                  ,[porHandlingInstructions]
-                  ,[porSpecialInstructions]
-                  ,[porDeliveryInstructions]
-                 */
-                 
-                 FROM (
-                  SELECT  DISTINCT --TOP 100000 
-                  porCode
-                  ,porDescription
-                  ,[porBuyerOrganization]
-                  ,LOWER(REPLACE(REPLACE(SR.psrBuyerTaxID,'.',''),'-','')) [Rut Comprador] 
-                  ,SR.psrBuyerOrganizationLegalName  [Nombre Organismo Comprador]
-                  ,SR.psrBuyerActivity [Actividad del Comprador] 
-                  ,SR.psrBuyerAddress [Dirección \n Unidad de Compra]
-                  ,SR.psrBuyerCity [Región \n Unidad de Compra]
-                  ,SR.psrBuyerDistrict [Comuna \n Unidad de Compra]
-                  FROM [DCCPProcurement].[dbo].[prcPOHeader] PO
-                  INNER JOIN [DCCPProcurement].[dbo].[prcPOStaticRecipient] SR ON PO.porID =SR.psrOrder 
-                   WHERE porIsIntegrated = 3
-                        AND (YEAR([porSendDate]) = 2023 
-                        AND (psrBuyerActivity != 'UNIVERSIDADES')
-                 --AND MONTH([porSendDate]) = 11
-                 ) 
-                        AND ([porBuyerStatus] IN (4, 5, 6, 7, 12))
-            				     AND SR.psrBuyerCity = 16
-                    -- ORDER BY NEWID() -- Asegura la selección aleatoria
-                    ) AS Subquery
-        				 INNER JOIN [DCCPProcurement].[dbo].[prcPOHeader] PO ON Subquery.[porCode] = PO.[porCode]
-      				   INNER JOIN [DCCPProcurement].[dbo].[prcPOStaticRecipient] SR2 ON PO.porID =SR2.psrOrder
-        				 
-        				 
-        				 /* 
-        				 INNER JOIN [DCCPPlatform].[dbo].[gblOrganization] O2 ON PO.porSellerOrganization = O2.orgCode -- Identifica sucursal prov.
-                 INNER JOIN [DCCPPlatform].[dbo].[gblEnterprise] E2 ON O2.orgEnterprise = E2.entCode -- Identifica Proveedor
-        				 INNER JOIN [DCCPPlatform].[dbo].[gblOrganizationAddress] OA2 ON O2.orgCode = OA2.oraOrganization 
-        				 INNER JOIN [DCCPPlatform].[dbo].[gblEnterpriseAddress] EA2 ON OA2.oraAddress = EA2.eadCode
-        				 INNER JOIN [DCCPPlatform].[dbo].[gblCity] C2 ON EA2.eadCity = C2.citCode
-        				 INNER JOIN [DCCPPlatform].[dbo].[gblDistrict] D2 ON EA2.eadDistrict = D2.disCode
-        				 */
-                 
-        				 INNER JOIN [DCCPProcurement].[dbo].[prcPOShipmentType] ST ON PO.porShipmentType = ST.pstCode 
-        				 -- INNER JOIN [DCCPProcurement].[dbo].[prcPOItem] PI ON PO.[porID] = PI.poiOrder
-             ) A
-             
-             LEFT JOIN [10.34.71.202].[Estudios].[dbo].[sii_atrib_2021] SII ON A.Rut_numero = SII.RUT
-        				 
-        				 
+data <- sqlQuery(con2, "
+          SELECT
+          TABLA2.*
+          ,(CASE 
+          WHEN TABLA2.[Proveedor Local 2]='1' AND TABLA2.Size='MiPyme' THEN 'Proveedor Local' 
+          ELSE 'Otro Caso' END
+          ) [Proveedor Local Ley]
+          FROM  
+          (
+          SELECT 
+           TABLA.*
+            ,(CASE 
+            WHEN TABLA.[id_region_sr] = TABLA.[Región  Unidad de Compra] THEN 1
+            ELSE 0 END) [Proveedor Local 1]
+            ,(CASE 
+            WHEN TABLA.[id_region_sr] = TABLA.[Región Despacho (SolicitudCotizacion)] THEN 1
+            ELSE 0 END) [Proveedor Local 2]
+            ,SII.DESCRIPCION_ACTIVIDAD_ECONOMICA
+            ,(CASE  
+            WHEN SII.TRAMOS_5 IN (1,2,3,4) THEN 'MiPyme'
+            ELSE 'Grande' END
+            ) [Size]
+          
+          FROM (
+          SELECT  DISTINCT --TOP 100000 
+          	PO.porCode
+          	,PO.porDescription [Descripción orden de compra]
+          	,SC.Descripcion [Descripción Cotización]
+          	,PO.[porBuyerOrganization]
+          	,LOWER(REPLACE(REPLACE(SR.psrBuyerTaxID,'.',''),'-','')) [Rut Comprador] 
+          	,SR.psrBuyerOrganizationLegalName  [Nombre Organismo Comprador]
+          	,SR.psrBuyerActivity [Actividad del Comprador] 
+          	,SR.psrBuyerAddress [Dirección  Unidad de Compra]
+          	,SR.psrBuyerCity [Región  Unidad de Compra]
+          	,SC.CodigoRegion [Región Despacho (SolicitudCotizacion)]
+          	,SR.psrBuyerDistrict [Comuna  Unidad de Compra]
+          	,[porSellerOrganization]
+          	,SR2.psrSellerOrganizationLegalName  [Nombre Proveedor (sucursal)]
+          	,SR2.psrSellerActivity [Actividad Proveedor]
+          	,CO.EsProveedorSeleccionado [Ganadora]
+          	,LOWER(REPLACE(REPLACE(SR2.psrSellerTaxID,'.',''),'-','')) [Rut Proveedor] 
+          	,LEFT(LOWER(REPLACE(REPLACE(SR2.psrSellerTaxID,'.',''),'-',''))
+          		,LEN(LOWER(REPLACE(REPLACE(SR2.psrSellerTaxID,'.',''),'-','')))-1) [Rut_numero]
+          	,RIGHT(LOWER(REPLACE(REPLACE(SR2.psrSellerTaxID,'.',''),'-','')),1) [Rut_dv]
+          	,SR2.psrSellerOrganizationLegalName  [Razón Social Proveedor]
+          	,SR2.psrSellerActivity [Actividad del Proveedor  (prcPOStaticRecipient)] 
+          	,SR2.psrSellerAddress [Dirección  Proveedor  (prcPOStaticRecipient)]
+          	,SR2.psrSellerCity [Región  Proveedor  (prcPOStaticRecipient)]
+          	,SR2.psrSellerDistrict [Comuna  Proveedor  (prcPOStaticRecipient)]
+          	, (CASE SR2.psrSellerCity 
+          	WHEN 'DEL BIO BIO' THEN 8 
+          	WHEN 'ñUBLE' THEN 16
+          	WHEN 'Región Aysén del General Carlos Ibáñez del Campo' THEN 11
+          	WHEN 'Región de Arica y Parinacota' THEN 15
+          	WHEN 'Región de Coquimbo' THEN 4
+          	WHEN 'Región de los Lagos' THEN 10
+          	WHEN 'Región de Magallanes y de la Antártica' THEN 12
+          	WHEN 'Región de Valparaíso' THEN 5
+          	WHEN 'Región del Libertador General Bernardo O´Higgins' THEN 6
+          	WHEN 'Región del Ñuble' THEN 16
+          	WHEN 'Bio - Bio' THEN 8
+          	WHEN 'Ñuble' THEN 16
+          	WHEN 'Región de Antofagasta' THEN 2
+          	WHEN 'Región de Atacama' THEN 3
+          	WHEN 'Región de la Araucanía' THEN 9
+          	WHEN 'Región de Los Ríos' THEN 14
+          	WHEN 'Región de Tarapacá' THEN 1
+          	WHEN 'Región del Biobío' THEN 8
+          	WHEN 'Región del Maule' THEN 7
+          	WHEN 'Región Metropolitana de Santiago' THEN 13 
+          	ELSE 0 END) [id_region_sr]
+                    
+          	FROM [DCCPCotizacion].[dbo].[SolicitudCotizacion] as SC
+          	LEFT JOIN  [DCCPCotizacion].[dbo].[Cotizacion] co on co.SolicitudCotizacionId=SC.id and CO.ESTADOID = 2
+          	INNER JOIN [DCCPCotizacion].[dbo].[RelacionOC] as ROC ON ROC.IdSolicitudCotizacion = SC.Id
+          	INNER JOIN DCCPProcurement.dbo.prcPOHeader as PO ON PO.porID=ROC.porId
+          	INNER JOIN [DCCPProcurement].[dbo].[prcPOStaticRecipient] SR ON PO.porID =SR.psrOrder 
+          	INNER JOIN [DCCPProcurement].[dbo].[prcPOStaticRecipient] SR2 ON PO.porID =SR2.psrOrder
+          	WHERE porIsIntegrated = 3
+          		AND (YEAR([porSendDate]) = 2023 
+          		AND (SR.psrBuyerActivity != 'UNIVERSIDADES')
+          		AND (SC.idEstado>=2)
+          		--AND MONTH([porSendDate]) = 11
+          		) 
+          		AND ([porBuyerStatus] IN (4, 5, 6, 7, 12))
+                      	AND SR.psrBuyerCity = 16
+          	-- ORDER BY NEWID() -- Asegura la selección aleatoria
+          	)  TABLA 
+            INNER JOIN [10.34.71.202].[Estudios].[dbo].[sii_atrib_2021] SII ON TABLA.Rut_numero = SII.RUT
+          ) TABLA2
 
                  ")
+
 
 end <- Sys.time()
 
 difftime(end, start, units = "mins")
 
+data %>% 
+  filter(Ganadora == 1) %>% 
+  group_by(DESCRIPCION_ACTIVIDAD_ECONOMICA, `Proveedor Local Ley`) %>% count() %>% 
+  data.table::setDT() %>% 
+  data.table::dcast(DESCRIPCION_ACTIVIDAD_ECONOMICA~`Proveedor Local Ley`, value.var = 'n') %>% 
+  mutate(n_var = round((((`Proveedor Local`/(`Proveedor Local`+`Otro Caso`))-1))*100,2),
+         n_oc = (`Proveedor Local`+`Otro Caso`)) %>%
+  arrange(desc(n_var)) %>% 
+  arrange(desc(n_oc)) %>% 
+  View() 
+
+
+data %>% 
+  filter(DESCRIPCION_ACTIVIDAD_ECONOMICA == "VENTA AL POR MENOR DE OTROS PRODUCTOS EN COMERCIOS ESPECIALIZADOS N.C.P.") %>% 
+  View()
+
+data %>% 
+  filter(DESCRIPCION_ACTIVIDAD_ECONOMICA == "INSTALACIONES DE GASFITERIA, CALEFACCION Y AIRE ACONDICIONADO") %>% 
+  group_by(`Nombre Organismo Comprador`) %>% 
+  count() %>% 
+  View()
 
 data %>% 
   group_by(`Actividad Proveedor`) %>% 
@@ -577,9 +605,9 @@ data %>%
 #                   ,Subquery.[Nombre Unidad de Compra]
 #                   ,Subquery.[Nombre Organismo Comprador]
 #                   ,Subquery.[Nombre dirección Unidad de Compra]
-#                   ,Subquery.[Dirección \n Unidad de Compra]
-#                   ,Subquery.[Región \n Unidad de Compra]
-#                   ,Subquery.[Comuna \n Unidad de Compra]
+#                   ,Subquery.[Dirección  Unidad de Compra]
+#                   ,Subquery.[Región  Unidad de Compra]
+#                   ,Subquery.[Comuna  Unidad de Compra]
 # 
 #                   ,PI.poiName
 #                   ,PI.poiDescription
@@ -587,9 +615,9 @@ data %>%
 #                   , E2.entName [Nombre Proveedor (matriz)]
 #                   --, (CASE WHEN C.citCode = C2.citCode THEN 1 ELSE 0 END) [Proveedor Local]
 #                   , EA2.eadName [Nombre dirección sucursal]
-#                   , EA2.eadAddress [Dirección \n Sucursal]
-#                   , C2.citName [Región \n Sucursal]
-#                   , D2.disName [Comuna \n Sucursal]
+#                   , EA2.eadAddress [Dirección  Sucursal]
+#                   , C2.citName [Región  Sucursal]
+#                   , D2.disName [Comuna  Sucursal]
 #                   /*, ST.pstDescription
 #                   ,[porShipmentType] -- Tipo de Despacho
 #                   ,[porInvoiceAddress] -- Dirección de facturación 
@@ -608,9 +636,9 @@ data %>%
 #                   ,O.orgLegalName [Nombre Unidad de Compra]
 #                   ,E.entName [Nombre Organismo Comprador]
 #                   , EA.eadName [Nombre dirección Unidad de Compra]
-#                   , EA.eadAddress [Dirección \n Unidad de Compra]
-#                   , C.citName [Región \n Unidad de Compra]
-#                   , D.disName [Comuna \n Unidad de Compra]
+#                   , EA.eadAddress [Dirección  Unidad de Compra]
+#                   , C.citName [Región  Unidad de Compra]
+#                   , D.disName [Comuna  Unidad de Compra]
 #                   FROM [DCCPProcurement].[dbo].[prcPOHeader] PO
 #                    INNER JOIN [DCCPPlatform].[dbo].[gblOrganization] O ON PO.porBuyerOrganization = O.orgCode -- Identifica unidad de compra
 #                    INNER JOIN [DCCPPlatform].[dbo].[gblEnterprise] E ON O.orgEnterprise = E.entCode      -- Identifica organismo comprador           
@@ -648,3 +676,104 @@ data %>%
 # 
 # 
 # 
+# 
+# 
+# data <- sqlQuery(con2, "
+# SELECT A.*
+#   ,SII.CODIGO_ACTIVIDAD_ECONOMICA
+# ,SII.DESCRIPCION_ACTIVIDAD_ECONOMICA
+# ,(CASE 
+#   WHEN  A.[Región  Proveedor  (prcPOStaticRecipient)] = A.[Región  Unidad de Compra] THEN 1 
+#   ELSE 0 END) [Proveedor Local 1]
+# FROM (
+#   SELECT DISTINCT
+#   
+#   Subquery.*
+#     
+#     ,PO.porName
+#   --,PO.porDescription
+#   ,PO.porTotalAmount
+#   --,PI.poiName
+#   --,PI.poiDescription
+#   ,SR2.psrSellerOrganizationLegalName  [Nombre Proveedor (sucursal)]
+#   ,SR2.psrSellerActivity [Actividad Proveedor]
+#   ,[porSellerOrganization]
+#   ,LOWER(REPLACE(REPLACE(SR2.psrSellerTaxID,'.',''),'-','')) [Rut Proveedor] 
+#   ,LEFT(LOWER(REPLACE(REPLACE(SR2.psrSellerTaxID,'.',''),'-',''))
+#         ,LEN(LOWER(REPLACE(REPLACE(SR2.psrSellerTaxID,'.',''),'-','')))-1) [Rut_numero]
+#   ,RIGHT(LOWER(REPLACE(REPLACE(SR2.psrSellerTaxID,'.',''),'-','')),1) [Rut_dv]
+#   ,SR2.psrSellerOrganizationLegalName  [Razón Social Proveedor]
+#   ,SR2.psrSellerActivity [Actividad del Proveedor  (prcPOStaticRecipient)] 
+#   ,SR2.psrSellerAddress [Dirección  Proveedor  (prcPOStaticRecipient)]
+#   ,SR2.psrSellerCity [Región  Proveedor  (prcPOStaticRecipient)]
+#   ,SR2.psrSellerDistrict [Comuna  Proveedor  (prcPOStaticRecipient)]
+#   
+#   
+#   
+#   
+#   
+#   /*
+#     , EA2.eadName [Nombre dirección sucursal]
+#   , EA2.eadAddress [Dirección  Sucursal]
+#   , C2.citName [Región  Sucursal]
+#   , D2.disName [Comuna  Sucursal]
+#   , ST.pstDescription
+#   ,[porShipmentType] -- Tipo de Despacho
+#   ,[porInvoiceAddress] -- Dirección de facturación 
+#   ,[porShipAddress] -- Dirección de despacho
+#   ,[porShipInstructions]
+#   ,[porHandlingInstructions]
+#   ,[porSpecialInstructions]
+#   ,[porDeliveryInstructions]
+#   
+#   */
+#     
+#     FROM (
+#       SELECT  DISTINCT --TOP 100000 
+#       PO.porCode
+#       ,PO.porDescription [Descripción orden de compra]
+#       ,SC.Descripcion [Descripción Cotización]
+#       ,PO.[porBuyerOrganization]
+#       ,LOWER(REPLACE(REPLACE(SR.psrBuyerTaxID,'.',''),'-','')) [Rut Comprador] 
+#       ,SR.psrBuyerOrganizationLegalName  [Nombre Organismo Comprador]
+#       ,SR.psrBuyerActivity [Actividad del Comprador] 
+#       ,SR.psrBuyerAddress [Dirección  Unidad de Compra]
+#       ,SR.psrBuyerCity [Región  Unidad de Compra]
+#       ,SR.psrBuyerDistrict [Comuna  Unidad de Compra]
+#       
+#       FROM [DCCPCotizacion].[dbo].[SolicitudCotizacion] as SC
+#       LEFT JOIN  [DCCPCotizacion].[dbo].[Cotizacion] co on co.SolicitudCotizacionId=SC.id and CO.ESTADOID = 2
+#       INNER JOIN [DCCPCotizacion].[dbo].[RelacionOC] as ROC ON ROC.IdSolicitudCotizacion = SC.Id
+#       INNER JOIN DCCPProcurement.dbo.prcPOHeader as PO ON PO.porID=ROC.porId
+#       INNER JOIN [DCCPProcurement].[dbo].[prcPOStaticRecipient] SR ON PO.porID =SR.psrOrder 
+#       INNER JOIN [DCCPProcurement].[dbo].[prcPOStaticRecipient] SR2 ON PO.porID =SR2.psrOrder
+#       WHERE porIsIntegrated = 3
+#       AND (YEAR([porSendDate]) = 2023 
+#            AND (psrBuyerActivity != 'UNIVERSIDADES')
+#            AND (SC.idEstado>=2)
+#            --AND MONTH([porSendDate]) = 11
+#       ) 
+#       AND ([porBuyerStatus] IN (4, 5, 6, 7, 12))
+#       AND SR.psrBuyerCity = 16
+#       -- ORDER BY NEWID() -- Asegura la selección aleatoria
+#     ) AS Subquery
+#   INNER JOIN [DCCPProcurement].[dbo].[prcPOHeader] PO ON Subquery.[porCode] = PO.[porCode]
+#   INNER JOIN [DCCPProcurement].[dbo].[prcPOStaticRecipient] SR2 ON PO.porID =SR2.psrOrder
+#   
+#   /* 
+#     INNER JOIN [DCCPPlatform].[dbo].[gblOrganization] O2 ON PO.porSellerOrganization = O2.orgCode -- Identifica sucursal prov.
+#   INNER JOIN [DCCPPlatform].[dbo].[gblEnterprise] E2 ON O2.orgEnterprise = E2.entCode -- Identifica Proveedor
+#   INNER JOIN [DCCPPlatform].[dbo].[gblOrganizationAddress] OA2 ON O2.orgCode = OA2.oraOrganization 
+#   INNER JOIN [DCCPPlatform].[dbo].[gblEnterpriseAddress] EA2 ON OA2.oraAddress = EA2.eadCode
+#   INNER JOIN [DCCPPlatform].[dbo].[gblCity] C2 ON EA2.eadCity = C2.citCode
+#   INNER JOIN [DCCPPlatform].[dbo].[gblDistrict] D2 ON EA2.eadDistrict = D2.disCode
+#   
+#   INNER JOIN [DCCPProcurement].[dbo].[prcPOShipmentType] ST ON PO.porShipmentType = ST.pstCode 
+#   INNER JOIN [DCCPProcurement].[dbo].[prcPOItem] PI ON PO.[porID] = PI.poiOrder -- Para analizar por tipo de producto 
+#   */
+# ) A
+# INNER JOIN [10.34.71.202].[Estudios].[dbo].[sii_atrib_2021] SII ON A.Rut_numero = SII.RUT -- De aquí voy a sacar el tamaño
+# 
+# 
+# 
+# ")
