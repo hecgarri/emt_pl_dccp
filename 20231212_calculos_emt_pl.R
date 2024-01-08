@@ -418,7 +418,66 @@ cotizacion <- sqlQuery(con2, "SELECT TOP (1000) [Id]
       ,[EsOfertaParcial]
   FROM [DCCPCotizacion].[dbo].[Cotizacion]")
 
-sii_atrib_2021 <- sqlQuery(con3, "SELECT TOP (1000) 
+prcPOItem <- sqlQuery(con2, "
+          SELECT TOP (1000) [poiID]
+            ,[poiOrder]
+            ,[poiCorrelative]
+            ,[poiBuyerLineItem]
+            ,[poiBuyerPartCode]
+            ,[poiSellerPartCode]
+            ,[poiMfrPartCode]
+            ,[poiGoodAndService]
+            ,[poiSchema]
+            ,[poiCategory]
+            ,[poiName]
+            ,[poiDescription]
+            ,[poiUOM]
+            ,[poiQuantity]
+            ,[poiCurrency]
+            ,[poiNetPrice]
+            ,[poiIsTaxable]
+            ,[poiTotalCharges]
+            ,[poiTotalDiscounts]
+            ,[poiTotalTaxes]
+            ,[poiTotalAmount]
+            ,[poiRequestedShipDate]
+            ,[poiRequestedDeliveryDate]
+            ,[poiInvoicedQuantity]
+            ,[poiShippedQuantity]
+            ,[poiReceivedQuantity]
+            ,[poiShipAddress]
+            ,[poiShipInstructions]
+            ,[poiHandlingInstructions]
+            ,[poiSpecialInstructions]
+            ,[poiDeliveryInstructions]
+            ,[poiUserDefined1]
+            ,[poiUserDefined2]
+            ,[poiUserDefined3]
+            ,[poiFrameworkContract]
+            ,[poiIdConvenioMarco]
+            ,[poiNroLicitacionPublica]
+            FROM [DCCPProcurement].[dbo].[prcPOItem]"
+)
+
+prcGoodAndService <- sqlQuery(con2, "SELECT TOP (1000) [ProductoCode]
+      ,[idcategory]
+      ,[ProviderNumber]
+      ,[level1]
+      ,[level2]
+      ,[level3]
+      ,[levelcode]
+      ,[productoname]
+      ,[description]
+      ,[sinonimos]
+      ,[fulltextlevel3]
+      ,[path]
+      ,[NumOC]
+      ,[NumLC]
+      ,[typeLC]
+  FROM [DCCPProcurement].[dbo].[prcGoodAndService]")
+
+sii_atrib_2021 <- sqlQuery(con3, 
+                           "SELECT TOP (1000) 
                                  [AÑO_COMERCIAL]
                                 ,[RUT]
                                 ,[DV]
@@ -460,6 +519,7 @@ data <- sqlQuery(con2, "
           WHEN TABLA2.[Proveedor Local 2]='1' AND TABLA2.Size='MiPyme' THEN 'Proveedor Local' 
           ELSE 'Otro Caso' END
           ) [Proveedor Local Ley]
+          ,GS.level1 [Rubro ONU]
           FROM  
           (
           SELECT 
@@ -475,10 +535,13 @@ data <- sqlQuery(con2, "
             WHEN SII.TRAMOS_5 IN (1,2,3,4) THEN 'MiPyme'
             ELSE 'Grande' END
             ) [Size]
+           
           
           FROM (
-          SELECT  DISTINCT --TOP 100000 
+          SELECT DISTINCT --TOP 10000 
           	PO.porCode
+            ,PO.porID
+            ,SC.CodigoSolicitudCotizacion
           	,PO.porDescription [Descripción orden de compra]
           	,SC.Descripcion [Descripción Cotización]
           	,PO.[porBuyerOrganization]
@@ -489,7 +552,8 @@ data <- sqlQuery(con2, "
           	,SR.psrBuyerCity [Región  Unidad de Compra]
           	,SC.CodigoRegion [Región Despacho (SolicitudCotizacion)]
           	,SR.psrBuyerDistrict [Comuna  Unidad de Compra]
-          	,[porSellerOrganization]
+            --,CO.MontoTotal
+          	,PO.[porSellerOrganization]
           	,SR2.psrSellerOrganizationLegalName  [Nombre Proveedor (sucursal)]
           	,SR2.psrSellerActivity [Actividad Proveedor]
           	,CO.EsProveedorSeleccionado [Ganadora]
@@ -502,7 +566,8 @@ data <- sqlQuery(con2, "
           	,SR2.psrSellerAddress [Dirección  Proveedor  (prcPOStaticRecipient)]
           	,SR2.psrSellerCity [Región  Proveedor  (prcPOStaticRecipient)]
           	,SR2.psrSellerDistrict [Comuna  Proveedor  (prcPOStaticRecipient)]
-          	, (CASE SR2.psrSellerCity 
+          	
+            ,(CASE SR2.psrSellerCity 
           	WHEN 'DEL BIO BIO' THEN 8 
           	WHEN 'ñUBLE' THEN 16
           	WHEN 'Región Aysén del General Carlos Ibáñez del Campo' THEN 11
@@ -524,26 +589,56 @@ data <- sqlQuery(con2, "
           	WHEN 'Región del Maule' THEN 7
           	WHEN 'Región Metropolitana de Santiago' THEN 13 
           	ELSE 0 END) [id_region_sr]
+            ,COUNT(DISTINCT PO.porCode) [Cantidad OC]
+            ,SUM(
+			CASE 
+			WHEN CO.EsProveedorSeleccionado = 1 THEN PO.porTotalAmount
+			ELSE 0 END
+			) [Montos]
                     
           	FROM [DCCPCotizacion].[dbo].[SolicitudCotizacion] as SC
-          	LEFT JOIN  [DCCPCotizacion].[dbo].[Cotizacion] co on co.SolicitudCotizacionId=SC.id and CO.ESTADOID = 2
+          	LEFT JOIN  [DCCPCotizacion].[dbo].[Cotizacion] as co ON co.SolicitudCotizacionId=SC.id and CO.ESTADOID = 2
           	INNER JOIN [DCCPCotizacion].[dbo].[RelacionOC] as ROC ON ROC.IdSolicitudCotizacion = SC.Id
-          	INNER JOIN DCCPProcurement.dbo.prcPOHeader as PO ON PO.porID=ROC.porId
-          	INNER JOIN [DCCPProcurement].[dbo].[prcPOStaticRecipient] SR ON PO.porID =SR.psrOrder 
-          	INNER JOIN [DCCPProcurement].[dbo].[prcPOStaticRecipient] SR2 ON PO.porID =SR2.psrOrder
+          	INNER JOIN [DCCPProcurement].[dbo].[prcPOHeader] as PO ON PO.porID=ROC.porId
+          	INNER JOIN [DCCPProcurement].[dbo].[prcPOStaticRecipient] as SR ON PO.porID =SR.psrOrder 
+          	INNER JOIN [DCCPProcurement].[dbo].[prcPOStaticRecipient] as SR2 ON PO.porID =SR2.psrOrder
           	WHERE porIsIntegrated = 3
           		AND (YEAR([porSendDate]) = 2023 
-          		AND (SR.psrBuyerActivity != 'UNIVERSIDADES')
+          		--AND (SR.psrBuyerActivity != 'UNIVERSIDADES')
           		AND (SC.idEstado>=2)
           		--AND MONTH([porSendDate]) = 11
           		) 
           		AND ([porBuyerStatus] IN (4, 5, 6, 7, 12))
                       	AND SR.psrBuyerCity = 16
           	-- ORDER BY NEWID() -- Asegura la selección aleatoria
+            GROUP BY 
+			PO.porCode
+			,PO.porID
+			,SC.CodigoSolicitudCotizacion
+			,PO.porDescription
+			,SC.Descripcion
+			,PO.porBuyerOrganization
+			,SR.psrBuyerTaxID
+			,SR.psrBuyerOrganizationLegalName
+			,SR.psrBuyerActivity
+			,SR.psrBuyerAddress
+			,SR.psrBuyerCity
+			,SC.CodigoRegion
+			,SR.psrBuyerDistrict
+			,PO.porSellerOrganization
+			,SR2.psrSellerOrganizationLegalName
+			,SR2.psrSellerActivity
+			,CO.EsProveedorSeleccionado
+			,SR2.psrSellerTaxID
+			,SR2.psrSellerAddress
+			,SR2.psrSellerCity
+			,SR2.psrSellerDistrict
+            
           	)  TABLA 
             INNER JOIN [10.34.71.202].[Estudios].[dbo].[sii_atrib_2021] SII ON TABLA.Rut_numero = SII.RUT
           ) TABLA2
-
+            INNER JOIN [DCCPProcurement].[dbo].[prcPOItem] as PI ON TABLA2.porID=PI.poiOrder
+            INNER JOIN [DCCPProcurement].[dbo].[prcGoodAndService] as GS ON PI.poiCategory = GS.idcategory
                  ")
 
 
@@ -553,15 +648,19 @@ difftime(end, start, units = "mins")
 
 data %>% 
   filter(Ganadora == 1) %>% 
-  group_by(DESCRIPCION_ACTIVIDAD_ECONOMICA, `Proveedor Local Ley`) %>% count() %>% 
+  group_by(`Rubro ONU`, `Proveedor Local Ley`) %>% count() %>% 
   data.table::setDT() %>% 
-  data.table::dcast(DESCRIPCION_ACTIVIDAD_ECONOMICA~`Proveedor Local Ley`, value.var = 'n') %>% 
+  data.table::dcast(`Rubro ONU`~`Proveedor Local Ley`, value.var = 'n') %>% 
   mutate(n_var = round((((`Proveedor Local`/(`Proveedor Local`+`Otro Caso`))-1))*100,2),
          n_oc = (`Proveedor Local`+`Otro Caso`)) %>%
   arrange(desc(n_var)) %>% 
   arrange(desc(n_oc)) %>% 
   View() 
 
+
+data %>% 
+  filter(`Rubro ONU` == "Equipos, accesorios y suministros de oficina") %>% 
+  View()
 
 data %>% 
   filter(DESCRIPCION_ACTIVIDAD_ECONOMICA == "VENTA AL POR MENOR DE OTROS PRODUCTOS EN COMERCIOS ESPECIALIZADOS N.C.P.") %>% 
