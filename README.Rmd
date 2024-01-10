@@ -1,0 +1,130 @@
+---
+title: "Cuaderno de Laboratorio: Análisis de los cambios a la ley 19.886 y su eventual impacto sobre proveedores locales"
+output: github_document
+always_allow_html: true
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H', out.width = '100%')
+```
+
+
+## Motivación
+
+En el contexto de la reforma a la ley N° 19.886 en la que se introducen cambios relevantes en materia de promoción de la participación de empresas de menor tamaño en las compras públicas es que se establece, en el artículo 47, que además de ampliar el umbral para el uso de la Compra Ágil de 10 UTM a 30 UTM será exclusivo para proveedores locales, definidos estos como aquellas Pymes cuya dirección de la casa matriz coincide con la dirección de despacho
+
+```{r, include=FALSE}
+#Quita archivos del WorkSpace ===========================================================
+#
+rm(list = ls())
+
+#Fija el directorio de trabajo ==========================================================
+#
+
+wd_path = "C:/o/OneDrive - DCCP/Escritorio/Proyectos/Preferencias EMT y Compras Regionales/emt_pl_dccp/datos"
+
+
+setwd(wd_path)
+
+#Carga de paquetes necesarios para el análisis ==========================================
+#
+load_pkg <- function(pack){
+  create.pkg <- pack[!(pack %in% installed.packages()[, "Package"])]
+  if (length(create.pkg))
+    install.packages(create.pkg, dependencies = TRUE)
+  sapply(pack, require, character.only = TRUE)
+}
+
+packages = c("tidyverse" #Conjunto integral de paquetes para manipular y analizar datos de manera coherente y eficiente.
+             , "RODBC" #facilita la conexión y manipulación de bases de datos a través de ODBC (Open Database Connectivity).
+             , "plotly" #proporciona herramientas interactivas para la creación de gráficos dinámicos y visualizaciones interactivas
+             , "data.table" #Paquete optimizado para manipulación eficiente de grandes conjuntos de datos, destacando por su velocidad y funcionalidades avanzadas.
+             , "formattable"
+             , "hutils"
+             , "readr"
+             , "VennDiagram"
+             , "RColorBrewer")
+
+load_pkg(packages)
+
+
+# #Establece conexiones a los diferentes servidores =======================================
+# 
+# #con = RODBC::odbcConnect("aquiles", uid = "datawarehouse", pwd = "datawarehouse") #TIVIT
+
+con2 = RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse") #Aquiles
+
+con3 = RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse") #Datawarehouse
+
+
+
+detalles = function(path = wd_path, pattern = "*.rds"){
+  require(dplyr)
+  
+  details = file.info(path = paste0(wd_path), list.files(pattern=pattern))
+  
+  details = details[with(details, order(as.POSIXct(mtime), decreasing = TRUE)), ] %>% 
+    filter(isdir==FALSE)
+  
+  details$files = rownames(details)
+  
+  rownames(details) = NULL
+  
+  return(details)
+}
+
+```
+
+
+
+```{r}
+
+datos <- sqlQuery(con3, 
+    "SELECT TOP (1000) 
+	  OL.[poiID]
+      ,OL.[porID]
+      ,OL.[CodigoOC]
+      ,OL.[NombreItem]
+	  ,PR.NombreProducto
+	  ,RU.RubroN1
+	  ,RU.RubroN2
+	  ,RU.RubroN3
+      ,OL.[DescripcionItem]
+      ,OL.[UnidaddeMedida]
+      ,OL.[CantidadItem]
+      ,OL.[MonedaOC]
+      ,OL.[Monto]
+      ,OL.[MontoUSD]
+      ,OL.[MontoCLP]
+      ,OL.[MontoCLF]
+      ,OL.[MontoUTM]
+	  ,P.RazonSocialSucursal
+	  ,P.RUTSucursal
+	  ,P.ActividadSucursal
+	  ,E.NombreEmpresa
+	  ,DT.Tamano
+	  ,C.RazonSocialUnidaddeCompra
+	  ,C.RUTUnidaddeCompra
+	  ,C.ActividadUnidaddeCompra
+	  ,I.NombreInstitucion
+	  ,S.Sector
+  FROM [DM_Transaccional].[dbo].[THOrdenesCompraLinea] as OL 
+  INNER JOIN [DM_Transaccional].[dbo].[THOrdenesCompra] as OC ON OL.CodigoOC=OC.CodigoOC 
+  INNER JOIN [DM_Transaccional].[dbo].[DimTiempo] as T ON OC.IDFechaEnvioOC = T.DateKey
+  INNER JOIN [DM_Transaccional].[dbo].[DimProducto] as PR ON OL.IDProducto=PR.IDProducto
+  INNER JOIN [DM_Transaccional].[dbo].[DimRubro] as RU ON PR.IdRubro = RU.IdRubro
+  INNER JOIN [DM_Transaccional].[dbo].[DimProveedor] as P ON OC.IDSucursal=P.IDSucursal 
+  INNER JOIN [DM_Transaccional].[dbo].[DimComprador] as C ON OC.IDUnidaddeCompra = C.IDUnidaddeCompra
+  INNER JOIN [DM_Transaccional].[dbo].[DimEmpresa] as E ON P.entCode = E.entCode 
+  INNER JOIN [DM_Transaccional].[dbo].[DimInstitucion] as I ON C.entCode = I.entCode
+  INNER JOIN [DM_Transaccional].[dbo].[DimSector] as S ON I.IdSector = S.IdSector
+  INNER JOIN [DM_Transaccional].[dbo].[THTamanoProveedor] as TP ON TP.entcode = E.entCode AND TP.[AñoTributario]=2022 
+  INNER JOIN [DM_Transaccional].[dbo].[DimTamanoProveedor] as DT ON TP.idTamano = DT.IdTamano
+  WHERE T.Year = 2023 AND 
+  OC.IDEstadoOC IN  (4,6,12,13) 
+                  ")
+
+
+
+```
+

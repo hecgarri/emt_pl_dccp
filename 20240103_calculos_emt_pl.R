@@ -516,7 +516,9 @@ datos <- sqlQuery(con2, "
     SELECT
     TABLA2.*
     ,(CASE 
-    WHEN TABLA2.[Proveedor Local 2]='1' AND TABLA2.Size='MiPyme' THEN 'Proveedor Local' 
+    WHEN TABLA2.[Proveedor Local 2]='1' AND TABLA2.Size='MiPyme' THEN 'MiPyme Local' 
+    WHEN TABLA2.Size = 'Grande' THEN 'Grande'
+    WHEN TABLA2.Size = 'MiPyme' AND TABLA2.[Proveedor Local 2] = '0' THEN 'MiPyme No Local'
     ELSE 'Otro Caso' END
     ) [Proveedor Local Ley]
     ,GS.level1 [Rubro ONU 1]
@@ -540,17 +542,18 @@ datos <- sqlQuery(con2, "
             ELSE 0 END) [Proveedor Local 2]
             ,SII.DESCRIPCION_ACTIVIDAD_ECONOMICA
             ,(CASE  
-            WHEN SII.TRAMOS_5 IN (1,2,3,4) THEN 'MiPyme'
+            WHEN SII.TRAMOS_13 = 1 THEN 'Sin Ventas'
+            WHEN SII.TRAMOS_13 IN (2,3,4,5,6,7,8,9) THEN 'MiPyme'
             ELSE 'Grande' END
             ) [Size]
           
                     FROM (
-                    SELECT DISTINCT --TOP 10000 
-                    	'http://www.mercadopublico.cl/fichaLicitacion.html?idLicitacion='+PO.porCode as Link
+                    SELECT --TOP 10000 
+                    	SC.FechaPublicacion -- Fecha de publicación de solicitd de cotización
                       ,PO.porID
                       ,SC.CodigoSolicitudCotizacion
-                    	,PO.porDescription [Descripción orden de compra]
                     	,SC.Descripcion [Descripción Cotización]
+                      ,PO.porDescription [Descripción orden de compra]
                     	,PO.[porBuyerOrganization]
                     	,LOWER(REPLACE(REPLACE(SR.psrBuyerTaxID,'.',''),'-','')) [Rut Comprador] 
                     	,SR.psrBuyerOrganizationLegalName  [Nombre Organismo Comprador]
@@ -569,6 +572,7 @@ datos <- sqlQuery(con2, "
                     		,LEN(LOWER(REPLACE(REPLACE(SR2.psrSellerTaxID,'.',''),'-','')))-1) [Rut_numero]
                     	,RIGHT(LOWER(REPLACE(REPLACE(SR2.psrSellerTaxID,'.',''),'-','')),1) [Rut_dv]
                     	,SR2.psrSellerOrganizationLegalName  [Razón Social Proveedor]
+                      ,O.orgCreationDate
                     	,SR2.psrSellerActivity [Actividad del Proveedor  (prcPOStaticRecipient)] 
                     	,SR2.psrSellerAddress [Dirección  Proveedor  (prcPOStaticRecipient)]
                     	,SR2.psrSellerCity [Región  Proveedor  (prcPOStaticRecipient)]
@@ -603,23 +607,24 @@ datos <- sqlQuery(con2, "
                 			ELSE 0 END
                 			) [Montos]
                                   
-                  	FROM [DCCPCotizacion].[dbo].[SolicitudCotizacion] as SC
+                  	FROM [DCCPCotizacion].[dbo].[SolicitudCotizacion] as SC TABLESAMPLE (1000 ROWS) REPEATABLE (123)
                   	LEFT JOIN  [DCCPCotizacion].[dbo].[Cotizacion] as co ON co.SolicitudCotizacionId=SC.id and CO.ESTADOID = 2
                   	INNER JOIN [DCCPCotizacion].[dbo].[RelacionOC] as ROC ON ROC.IdSolicitudCotizacion = SC.Id
                   	INNER JOIN [DCCPProcurement].[dbo].[prcPOHeader] as PO ON PO.porID=ROC.porId
                   	INNER JOIN [DCCPProcurement].[dbo].[prcPOStaticRecipient] as SR ON PO.porID =SR.psrOrder 
                   	INNER JOIN [DCCPProcurement].[dbo].[prcPOStaticRecipient] as SR2 ON PO.porID =SR2.psrOrder
+                    INNER JOIN [DCCPPlatform].[dbo].[gblOrganization] as O ON PO.porSellerOrganization = O.orgCode
                   	WHERE porIsIntegrated = 3
-                  		AND (YEAR([porSendDate]) = 2023 
+                  		AND (YEAR(SC.FechaPublicacion) = 2023 
                   		--AND (SR.psrBuyerActivity != 'UNIVERSIDADES')
                   		AND (SC.idEstado>=2)
                   		--AND MONTH([porSendDate]) = 11
                   		) 
                   		AND ([porBuyerStatus] IN (4, 5, 6, 7, 12))
-                              	AND SR.psrBuyerCity = 16
+                    --        AND SR.psrBuyerCity = 16
                   	-- ORDER BY NEWID() -- Asegura la selección aleatoria
                     GROUP BY 
-              			PO.porCode
+                  	SC.FechaPublicacion
               			,PO.porID
               			,SC.CodigoSolicitudCotizacion
               			,PO.porDescription
@@ -634,6 +639,7 @@ datos <- sqlQuery(con2, "
               			,SR.psrBuyerDistrict
               			,PO.porSellerOrganization
               			,SR2.psrSellerOrganizationLegalName
+                    ,O.orgCreationDate
               			,SR2.psrSellerActivity
               			,CO.EsProveedorSeleccionado
               			,SR2.psrSellerTaxID
@@ -653,8 +659,61 @@ end <- Sys.time()
 
 difftime(end, start, units = "mins")
 
-saveRDS(datos, file = paste0(gsub("-", "", today()), " proveedores locales nuble", ".rds"))
+saveRDS(datos, file = paste0(gsub("-", "", today()), " proveedores locales compra ágil", ".rds"))
 
+
+
+datos <- sqlQuery(con2,
+"
+SELECT 
+	  OL.[poiID]
+      ,OL.[porID]
+      ,OL.[CodigoOC]
+      ,OL.[NombreItem]
+	  ,PR.NombreProducto
+	  ,RU.RubroN1
+	  ,RU.RubroN2
+	  ,RU.RubroN3
+      ,OL.[DescripcionItem]
+      ,OL.[UnidaddeMedida]
+      ,OL.[CantidadItem]
+      ,OL.[MonedaOC]
+      ,OL.[Monto]
+      ,OL.[MontoUSD]
+      ,OL.[MontoCLP]
+      ,OL.[MontoCLF]
+      ,OL.[MontoUTM]
+	  ,P.RazonSocialSucursal
+	  ,P.RUTSucursal
+	  ,P.ActividadSucursal
+	  ,E.NombreEmpresa
+	  ,DT.Tamano
+	  ,C.RazonSocialUnidaddeCompra
+	  ,C.RUTUnidaddeCompra
+	  ,C.ActividadUnidaddeCompra
+	  ,I.NombreInstitucion
+	  ,S.Sector
+  FROM [DCCPCotizacion].[dbo].[SolicitudCotizacion] as SC TABLESAMPLE (1000 ROWS) REPEATABLE (123)
+  LEFT JOIN  [DCCPCotizacion].[dbo].[Cotizacion] as co ON co.SolicitudCotizacionId=SC.id and CO.ESTADOID = 2
+  INNER JOIN [DCCPCotizacion].[dbo].[RelacionOC] as ROC ON ROC.IdSolicitudCotizacion = SC.Id
+  INNER JOIN [10.34.71.202].[DM_Transaccional].[dbo].[THOrdenesCompra] as OC  ON OC.porID=ROC.porId 
+  INNER JOIN [10.34.71.202].[DM_Transaccional].[dbo].[THOrdenesCompraLinea] as OL ON OC.CodigoOC=OL.CodigoOC 
+  INNER JOIN [10.34.71.202].[DM_Transaccional].[dbo].[DimTiempo] as T ON OC.IDFechaEnvioOC = T.DateKey
+  INNER JOIN [10.34.71.202].[DM_Transaccional].[dbo].[DimProducto] as PR ON OL.IDProducto=PR.IDProducto
+  INNER JOIN [10.34.71.202].[DM_Transaccional].[dbo].[DimRubro] as RU ON PR.IdRubro = RU.IdRubro
+  INNER JOIN [10.34.71.202].[DM_Transaccional].[dbo].[DimProveedor] as P ON OC.IDSucursal=P.IDSucursal 
+  INNER JOIN [10.34.71.202].[DM_Transaccional].[dbo].[DimComprador] as C ON OC.IDUnidaddeCompra = C.IDUnidaddeCompra
+  INNER JOIN [10.34.71.202].[DM_Transaccional].[dbo].[DimEmpresa] as E ON P.entCode = E.entCode 
+  INNER JOIN [10.34.71.202].[DM_Transaccional].[dbo].[DimInstitucion] as I ON C.entCode = I.entCode
+  INNER JOIN [10.34.71.202].[DM_Transaccional].[dbo].[DimSector] as S ON I.IdSector = S.IdSector
+  INNER JOIN [10.34.71.202].[DM_Transaccional].[dbo].[THTamanoProveedor] as TP ON TP.entcode = E.entCode AND TP.[AñoTributario]=2022 
+  INNER JOIN [10.34.71.202].[DM_Transaccional].[dbo].[DimTamanoProveedor] as DT ON TP.idTamano = DT.IdTamano
+  WHERE T.Year = 2023 AND 
+  OC.IDEstadoOC IN  (4,6,12,13) AND
+  OC.porIsIntegrated = 3 AND 
+  YEAR(SC.FechaPublicacion) = 2023;
+"
+)
 #####################
 # Análisis ==========
 #####################
