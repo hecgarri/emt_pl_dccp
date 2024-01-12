@@ -33,15 +33,6 @@ packages = c("tidyverse" #Conjunto integral de paquetes para manipular y analiza
 load_pkg(packages)
 
 
-# #Establece conexiones a los diferentes servidores =======================================
-# 
-# #con = RODBC::odbcConnect("aquiles", uid = "datawarehouse", pwd = "datawarehouse") #TIVIT
-
-con2 = RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse") #Aquiles
-
-con3 = RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse") #Datawarehouse
-
-
 
 detalles = function(path = wd_path, pattern = "*.rds"){
   require(dplyr)
@@ -71,9 +62,23 @@ detalles = function(path = wd_path, pattern = "*.rds"){
 #  solicitudes de cotización del módulo de compra ágil y la informacción contenida
 #  en licitaciones
 
-up_to_date <- TRUE
+up_to_date <- TRUE # ¿Los datos están actualizados? 
 
 if (!up_to_date){
+  
+  # #Establece conexiones a los diferentes servidores =======================================
+  # 
+  # #con = RODBC::odbcConnect("aquiles", uid = "datawarehouse", pwd = "datawarehouse") #TIVIT
+  
+  con2 = RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse") #Aquiles
+  
+  con3 = RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse") #Datawarehouse
+  
+  
+  
+#############################################################################################
+# pserSellerCity es llenado a mano, no me sirve. Duplica innecesariamente los datos
+#############################################################################################  
 
   start <- Sys.time()
   
@@ -90,69 +95,118 @@ if (!up_to_date){
 	  ,CP.Precio
 	  ,CP.MontoTotalProducto
 	  ,O1.orgLegalName [Razón Social Proveedor]
+	  ,E.entName
 	  ,CO.EsProveedorSeleccionado
 	  ,O1.orgActivity [Actividad Proveedor]
 	  ,O2.orgLegalName [Razón Social Comprador]
 	  ,SC.CodigoRegion [Región de Despacho]
---	  ,O2.orgActivity [Actividad Comprador]
-	  ,(CASE  
-            WHEN SII.TRAMOS_13 = 1 THEN 'MiPyme'
-            WHEN SII.TRAMOS_13 IN (2,3,4,5,6,7,8,9) THEN 'MiPyme'
-            ELSE 'Grande' END
-            ) [Size]
-	  ,(CASE SII.[DESCRIPCION_REGION] 
-		WHEN 'I REGION DE TARAPACA' THEN 1
-		WHEN 'II REGION DE ANTOFAGASTA' THEN 2
-		WHEN 'III REGION DE ATACAMA' THEN 3
-		WHEN 'IV REGION COQUIMBO' THEN 4
-		WHEN 'V REGION VALPARAISO' THEN 5
-		WHEN 'VII REGION DEL MAULE' THEN 7
-		WHEN 'VIII REGION DEL BIO BIO' THEN 8
-		WHEN 'IX REGION DE LA ARAUCANIA' THEN 9
-		WHEN 'X REGION LOS LAGOS' THEN 10
-		WHEN 'XI REGION AYSEN DEL GENERAL CARLOS IBAÑEZ DEL CAMPO' THEN 11
-		WHEN 'XII REGION DE MAGALLANES Y LA ANTARTICA CHILENA' THEN 12
-		WHEN 'XIII REGION METROPOLITANA' THEN 13
-		WHEN 'XIV REGION DE LOS RIOS' THEN 14
-		WHEN 'XV REGION ARICA Y PARINACOTA' THEN 15
-		WHEN 'XVI REGION DE ÑUBLE' THEN 16
-		WHEN 'Sin Información' THEN 0
-		ELSE 6 END) AS id_regionProv
-  FROM [DCCPCotizacion].[dbo].[SolicitudCotizacion] as SC --TABLESAMPLE (1000 ROWS) REPEATABLE (123)
+    ,(CASE  
+    WHEN SII.TRAMOS_13 IS NULL THEN 'Sin categoría' -- 
+    WHEN SII.TRAMOS_13 IN (1,2,3,4,5,6,7,8,9) THEN 'MiPyme'
+    ELSE 'Grande' 
+    END) AS [Size]
+	,(CASE 
+			WHEN SII.[DESCRIPCION_REGION] = 'I REGION DE TARAPACA' THEN 1
+			WHEN SII.[DESCRIPCION_REGION] = 'II REGION DE ANTOFAGASTA' THEN 2
+			WHEN SII.[DESCRIPCION_REGION] = 'III REGION DE ATACAMA' THEN 3
+			WHEN SII.[DESCRIPCION_REGION] = 'IV REGION COQUIMBO' THEN 4
+			WHEN SII.[DESCRIPCION_REGION] = 'V REGION VALPARAISO' THEN 5
+			WHEN SII.[DESCRIPCION_REGION] = 'VII REGION DEL MAULE' THEN 7
+			WHEN SII.[DESCRIPCION_REGION] = 'VIII REGION DEL BIO BIO' THEN 8
+			WHEN SII.[DESCRIPCION_REGION] = 'IX REGION DE LA ARAUCANIA' THEN 9
+			WHEN SII.[DESCRIPCION_REGION] = 'X REGION LOS LAGOS' THEN 10
+			WHEN SII.[DESCRIPCION_REGION] = 'XI REGION AYSEN DEL GENERAL CARLOS IBAÑEZ DEL CAMPO' THEN 11
+			WHEN SII.[DESCRIPCION_REGION] = 'XII REGION DE MAGALLANES Y LA ANTARTICA CHILENA' THEN 12
+			WHEN SII.[DESCRIPCION_REGION] = 'XIII REGION METROPOLITANA' THEN 13
+			WHEN SII.[DESCRIPCION_REGION] = 'XIV REGION DE LOS RIOS' THEN 14
+			WHEN SII.[DESCRIPCION_REGION] = 'XV REGION ARICA Y PARINACOTA' THEN 15
+			WHEN SII.[DESCRIPCION_REGION] = 'XVI REGION DE ÑUBLE' THEN 16
+			WHEN SII.[DESCRIPCION_REGION] = 'Sin Información' THEN 0
+			WHEN SII.[DESCRIPCION_REGION] IS NULL THEN 'Sin categoría'
+			ELSE 6 
+			END) AS id_regionProv
+	FROM [DCCPCotizacion].[dbo].[SolicitudCotizacion] as SC --TABLESAMPLE (1000 ROWS) REPEATABLE (123)
   LEFT JOIN  [DCCPCotizacion].[dbo].[Cotizacion] as co ON co.SolicitudCotizacionId=SC.id and CO.ESTADOID = 2
   INNER JOIN [DCCPCotizacion].[dbo].[CotizacionProducto] as CP ON CO.Id = CP.CotizacionId
   INNER JOIN [DCCPProcurement].[dbo].[prcGoodAndService] as GS ON CP.CodigoProducto = GS.ProductoCode 
   INNER JOIN [DCCPPlatform].[dbo].[gblOrganization] as O1 ON CO.CodigoSucursalEmpresa COLLATE Modern_Spanish_CI_AI = O1.orgCode COLLATE Modern_Spanish_CI_AI
+  INNER JOIN [DCCPPlatform].[dbo].[gblEnterprise] as E ON CO.CodigoEmpresa = E.entCode COLLATE Modern_Spanish_CI_AI
   INNER JOIN [DCCPPlatform].[dbo].[gblOrganization] as O2 ON SC.CodigoOrganismo  COLLATE Modern_Spanish_CI_AI = O2.orgCode COLLATE Modern_Spanish_CI_AI
-  INNER JOIN [10.34.71.202].[Estudios].[dbo].[sii_atrib_2021] SII ON CAST(LEFT(LOWER(REPLACE(REPLACE(O1.orgTaxID,'.',''),'-',''))
-        		,LEN(LOWER(REPLACE(REPLACE(O1.orgTaxID,'.',''),'-','')))-1) as VARCHAR(50))  = CAST(SII.RUT AS VARCHAR(50))
+  INNER JOIN [Estudios].[dbo].[sii_atrib_2021] as SII ON CAST(LEFT(LOWER(REPLACE(REPLACE(O1.orgTaxID,'.',''),'-',''))
+        		,LEN(LOWER(REPLACE(REPLACE(O1.orgTaxID,'.',''),'-','')))-1) as VARCHAR(50)) = CAST(SII.RUT AS VARCHAR(50))  
+  INNER JOIN [Estudios].[dbo].[THTamanoProveedor] as TP ON TP.entcode = E.entCode AND TP.[AñoTributario]=2022 
+  ---------------------------------------------------
   WHERE YEAR(SC.FechaPublicacion) = 2023
   ) 
   SELECT 
     TABLA.*,
     (CASE 
-        WHEN [id_regionProv] = [Región de Despacho] AND Size = 'MiPyme' 
-		THEN 'Local' 
-        ELSE 
-		(CASE
-			WHEN [id_regionProv] != [Región de Despacho] AND Size = 'MiPyme'
-			THEN 'No Local'
-			ELSE 'Grande' END
-		)
-    END) AS [Proveedor Local 2]
+        WHEN [id_regionProv] = [Región de Despacho] AND Size = 'MiPyme' THEN 'Local' 
+  			WHEN [id_regionProv] != [Región de Despacho] AND Size = 'MiPyme' THEN 'No Local'
+        WHEN size = 'Sin categoría' THEN 'sin categoría'
+        ELSE 'Grande' END) AS [Proveedor Local 2]
 FROM TABLA;
 ")
   
   
   end <- Sys.time()
   
-  difftime(end, start, units = "mins")
+  print(difftime(end, start, units = "mins"))
   
   saveRDS(datos, file = paste0(gsub("-", "", today()), " proveedores locales compra ágil", ".rds"))
   
 } else {
   datos <- readRDS(file = '20240111 proveedores locales compra ágil.rds')
 }
+
+
+datos <- setDT(datos)
+
+resultado <- datos[, .(frecuencia = .N), by = .(`Región de Despacho`,`Proveedor Local 2`,  `level1`)]
+
+
+region <- datos[,.(frecuencia = .N), by = .(`Región de Despacho`)]
+
+proveedor_local <- datos[,.(frecuencia = .N), by = .(`Proveedor Local 2`)]
+
+region2 <- datos[,.(frecuencia = .N), by = .(id_regionProv)]
+
+
+razon_social <- datos[,.(frecuencia = .N), by = .(`Razón Social Proveedor`)]
+
+#proveedores <- datos[,.(frecuencia = .N), by = .(`Razón Social Proveedor`)]
+
+# TITLE: Microsoft SQL Server Management Studio
+# ------------------------------
+#   
+#   Failed to retrieve data for this request. (Microsoft.SqlServer.Management.Sdk.Sfc)
+# 
+# For help, click: https://go.microsoft.com/fwlink?ProdName=Microsoft%20SQL%20Server&LinkId=20476
+# 
+# ------------------------------
+#   ADDITIONAL INFORMATION:
+#   
+#   An exception occurred while executing a Transact-SQL statement or batch. (Microsoft.SqlServer.ConnectionInfo)
+# 
+# ------------------------------
+#   
+#   The connection is broken and recovery is not possible.  The client driver attempted to recover the connection one or more times and all attempts failed.  Increase the value of ConnectRetryCount to increase the number of recovery attempts. (Microsoft SQL Server, Error: 0)
+# 
+# For help, click: https://docs.microsoft.com/sql/relational-databases/errors-events/mssqlserver-0-database-engine-error
+# 
+# ------------------------------
+#   
+#   Cannot open database "DCCPProcurement" requested by the login. The login failed.
+# Login failed for user 'datawarehouse'. (Microsoft SQL Server, Error: 4060)
+# 
+# For help, click: https://docs.microsoft.com/sql/relational-databases/errors-events/mssqlserver-4060-database-engine-error
+# 
+# ------------------------------
+#   BUTTONS:
+#   
+#   OK
+# ------------------------------
+#   
 
 
 wb <- createWorkbook()
