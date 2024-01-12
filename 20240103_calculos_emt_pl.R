@@ -174,58 +174,8 @@ region2 <- datos[,.(frecuencia = .N), by = .(id_regionProv)]
 
 razon_social <- datos[,.(frecuencia = .N), by = .(`Razón Social Proveedor`)]
 
-#proveedores <- datos[,.(frecuencia = .N), by = .(`Razón Social Proveedor`)]
-
-# TITLE: Microsoft SQL Server Management Studio
-# ------------------------------
-#   
-#   Failed to retrieve data for this request. (Microsoft.SqlServer.Management.Sdk.Sfc)
-# 
-# For help, click: https://go.microsoft.com/fwlink?ProdName=Microsoft%20SQL%20Server&LinkId=20476
-# 
-# ------------------------------
-#   ADDITIONAL INFORMATION:
-#   
-#   An exception occurred while executing a Transact-SQL statement or batch. (Microsoft.SqlServer.ConnectionInfo)
-# 
-# ------------------------------
-#   
-#   The connection is broken and recovery is not possible.  The client driver attempted to recover the connection one or more times and all attempts failed.  Increase the value of ConnectRetryCount to increase the number of recovery attempts. (Microsoft SQL Server, Error: 0)
-# 
-# For help, click: https://docs.microsoft.com/sql/relational-databases/errors-events/mssqlserver-0-database-engine-error
-# 
-# ------------------------------
-#   
-#   Cannot open database "DCCPProcurement" requested by the login. The login failed.
-# Login failed for user 'datawarehouse'. (Microsoft SQL Server, Error: 4060)
-# 
-# For help, click: https://docs.microsoft.com/sql/relational-databases/errors-events/mssqlserver-4060-database-engine-error
-# 
-# ------------------------------
-#   BUTTONS:
-#   
-#   OK
-# ------------------------------
-#   
-
 
 wb <- createWorkbook()
-
-# Crea una hoja de índice con enlaces a otras hojas
-# 
-
-addWorksheet(wb, sheetName = 'Indice')
-
-indice <- data.frame(
-  Hoja = c("Proveedor Local - Rubro"
-           , "Proveedores inter - Rubro"),
-  Enlace = c("Proveedor Local - Rubro!A1"
-             , "Proveedores inter - Rubro!A1")
-)
-
-# Escribe la tabla en la hoja de índice
-writeDataTable(wb, sheet = "Indice", x = indice, startCol = 1, startRow = 1, tableName = "Indice", tableStyle = "TableStyleLight9")
-
 
 addWorksheet(wb, sheetName = 'Proveedor Local - Rubro')
 
@@ -234,8 +184,11 @@ n_oferta_rubros <- datos %>%
   summarise(n_ofertas = n(),  
             n_solicitudes = sum(EsProveedorSeleccionado),
             n_proveedores = n_distinct(`Razón Social Comprador`)) %>% 
+  rename(`Cantidad de Cotizaciones` = n_ofertas
+         ,`Cantidad de solicitudes` = n_solicitudes
+         ,`Cantidad de proveedores` = n_proveedores) %>% 
   setDT() %>% 
-  data.table::dcast(level1+`Región de Despacho`~`Proveedor Local 2`, value.var = c('n_ofertas', 'n_solicitudes', 'n_proveedores'))
+  data.table::dcast(level1+`Región de Despacho`~`Proveedor Local 2`, value.var = c('Cantidad de Cotizaciones', 'Cantidad de solicitudes', 'Cantidad de proveedores'))
 
 writeData(wb, sheet = "Proveedor Local - Rubro", x = n_oferta_rubros)
 
@@ -246,9 +199,12 @@ n_regiones <- datos %>%
   group_by(level1, `Región de Despacho`, `id_regionProv`) %>% 
   summarise(n_ofertas = n(),
             n_solicitudes = sum(EsProveedorSeleccionado),
-            n_proveedores = n_distinct(`Razón Social Comprador`)) %>% 
+            n_proveedores = n_distinct(`Razón Social Comprador`)) %>%
+  rename(`Cantidad de Cotizaciones` = n_ofertas
+         ,`Cantidad de solicitudes` = n_solicitudes
+         ,`Cantidad de proveedores` = n_proveedores) %>% 
   setDT() %>% 
-  data.table::dcast(level1+`Región de Despacho`~id_regionProv, value.var = c('n_ofertas', 'n_solicitudes', 'n_proveedores'))
+  data.table::dcast(level1+`Región de Despacho`~id_regionProv, value.var = c('Cantidad de Cotizaciones', 'Cantidad de solicitudes', 'Cantidad de proveedores')) 
   
 
 writeData(wb, sheet = "Proveedores inter - Rubro", x = n_regiones)
@@ -257,13 +213,13 @@ writeData(wb, sheet = "Proveedores inter - Rubro", x = n_regiones)
 
 
 
-# Agrega fórmulas para crear hipervínculos en cada hoja
-for (i in 1:length(wb$sheet_names)) {
-  sheet_name <- wb$sheet_names[i]
-  if (sheet_name != "Indice") {
-    writeFormula(wb, sheet = sheet_name, x = paste0('HYPERLINK(', indice$Enlace[i], 'Volver al índice'), startCol = 1, startRow = 1)
-  }
-}
+# # Agrega fórmulas para crear hipervínculos en cada hoja
+# for (i in 1:length(wb$sheet_names)) {
+#   sheet_name <- wb$sheet_names[i]
+#   if (sheet_name != "Indice") {
+#     writeFormula(wb, sheet = sheet_name, x = paste0('HYPERLINK(', indice$Enlace[i], 'Volver al índice'), startCol = 1, startRow = 1)
+#   }
+# }
 
 
 saveWorkbook(wb, paste0(gsub("-", "", today()), "_estadisticas_proveedores_locales.xlsx"), overwrite = TRUE)
