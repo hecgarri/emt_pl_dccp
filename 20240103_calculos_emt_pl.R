@@ -49,7 +49,7 @@ detalles = function(path = wd_path, pattern = "*.rds"){
   return(details)
 }
 
-
+datasets <- detalles()
 
 # Plan de análisis: 
 # 1. cruzar las tablas gblEnterpriseAddress con prcPOHeader, a través de los campos eadCode y porShipAddress
@@ -156,7 +156,7 @@ FROM TABLA;
   saveRDS(datos, file = paste0(gsub("-", "", today()), " proveedores locales compra ágil", ".rds"))
   
 } else {
-  datos <- readRDS(file = '20240111 proveedores locales compra ágil.rds')
+  datos <- readRDS(file = '20240112 proveedores locales compra ágil.rds')
 }
 
 
