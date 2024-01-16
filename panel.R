@@ -41,6 +41,8 @@ ui <- fluidPage(
                                   choices = unique(datos_rubros_region$level1),
                                   selected = unique(datos_rubros_region$level1)[1:3], # Selecciona solo los primeros tres
                                   multiple = TRUE)
+                      ,downloadButton("downloadButton", "Descargar Datos Filtrados")
+                      ,helpText("Aquí puedes descargar los datos filtrados")
                ),
                column(width = 3,
                       h4("Data Frame"),
@@ -49,8 +51,6 @@ ui <- fluidPage(
                column(width = 6,
                       h4("Gráfico de Torta"),
                       plotOutput("pie_chart_product")
-                      ,downloadButton("downloadButton", "Descargar Datos Filtrados")
-                      ,helpText("Aquí puedes descargar los datos filtrados")
                )
              )
     ),
