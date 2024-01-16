@@ -2,8 +2,15 @@
 # Contenido de script1.R
 cat("Ejecutando 20240114 descarga datos_rubros_region.R ...\n")
 
-# Llamar a script2.R
-#source("20240114 descarga datos.R")
+# Llamar a script
+
+loaded <- TRUE #¿Los datos están cargados? 
+
+
+if (!loaded){
+  source("20240114 descarga datos.R")  
+}
+
 
 cat("Fin de 20240114 descarga datos_rubros_region.R\n")
 
@@ -23,7 +30,7 @@ ui <- fluidPage(
                       ,helpText("En este panel, puedes filtrar los datos por variable, región, fecha y rubro de la solicitud (Codigo ONU)")
                       #Filtro de variable
                       ,varSelectInput(inputId = "inputId", label = "Seleccionar variable:"
-                                      , data = datos_rubros_region[,c("ofertas", "solicitudes", "proveedores")]
+                                      , data = datos_rubros_region[,c("ofertas", "solicitudes")]
                                       ,selected = "ofertas"
                                       , multiple = FALSE)
                       
@@ -39,7 +46,7 @@ ui <- fluidPage(
                       # Filtro de tipo de producto
                       ,selectInput("product_filter_product", "Seleccionar Rubro:",
                                   choices = unique(datos_rubros_region$level1),
-                                  selected = unique(datos_rubros_region$level1)[1:3], # Selecciona solo los primeros tres
+                                  selected = unique(datos_rubros_region$level1)[1:10], # Selecciona solo los primeros tres
                                   multiple = TRUE)
                       ,downloadButton("downloadButton", "Descargar Datos Filtrados")
                       ,helpText("Aquí puedes descargar los datos filtrados")
@@ -50,7 +57,7 @@ ui <- fluidPage(
                ),
                column(width = 6,
                       h4("Gráfico de Torta"),
-                      plotOutput("pie_chart_product")
+                      plotOutput("bar_chart_product")
                )
              )
     ),
@@ -126,24 +133,34 @@ server <- function(input, output, session) {
   })
   
 
-  output$pie_chart_product <- renderPlot({
+  output$bar_chart_product <- renderPlot({
     variable_seleccionada <- input$inputId
     
     total_por_tipo <- filtered_data_product() %>%
       group_by(level1, NombreRegion) %>%
       summarise(value = sum(!!sym(variable_seleccionada)))
     
-    pie_chart <- ggplot(total_por_tipo, aes(x = level1, y = value, fill = level1)) +
+    
+    total_por_tipo$level1 <- str_wrap(total_por_tipo$level1, width = 15)
+    
+    
+    bar_chart <- ggplot(total_por_tipo, aes(x = reorder(level1, -value), y = value, fill = reorder(level1, -value))) +
       geom_bar(stat = "identity", color = "white", position = "dodge") +
       geom_text(aes(label = scales::comma(round(value), big.mark = ".", decimal.mark = ",")),
-                position = position_dodge(width = 1), vjust = -0.5, size = 4, color = "black")+
+                position = position_dodge(width = 1), vjust = -0.5, size = 4, color = "black") +
       theme_minimal() +
-      theme(legend.position = "top", axis.text.x = element_blank()) +
-      scale_fill_manual(name = "Tipo de Producto", values = scales::hue_pal()(length(unique(datos_rubros_region$level1)))) +
+      theme(legend.position = "top", axis.text.x = element_blank()
+            ,legend.key.width = unit(1, "cm")  # Ajusta el ancho de la leyenda
+            ,legend.key.height = unit(1, "cm")
+            #,plot.title =  element_text(face = "bold", size = 30)
+            ) +
+      scale_fill_manual(name = "Tipo de Producto"
+                        , values = scales::hue_pal()(length(unique(datos_rubros_region$level1)))) +
       facet_grid(~NombreRegion, scales = "free_y", space = "free_y")
     
-    print(pie_chart)
-  })
+    print(bar_chart)
+  }, height = 700, width = 600)
+  
   
   
   output$table <- renderDT({
@@ -170,7 +187,7 @@ server <- function(input, output, session) {
       paste("filtered_data_product", Sys.Date(), ".csv", sep = "")
     },
     content = function(file) {
-      write.csv(total_por_tipo(), file, row.names = FALSE)
+      write.csv(filtered_data_product(), file, row.names = FALSE)
     }
   )
 
