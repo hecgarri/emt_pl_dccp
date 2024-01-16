@@ -1,0 +1,2 @@
+Rscript "F:/visualizaciones/valores agregados control interno/control interno codigo datos/Source tables_V10BETA2.R"
+Rscript -e "shiny::runApp('F:/valores agregados control interno/Test/new_appDashboard2.R',host='10.34.53.122',port=3333)"
