@@ -30,7 +30,8 @@ packages = c("tidyverse" #Conjunto integral de paquetes para manipular y analiza
              ,"openxlsx"
              , "shiny"
              ,"ggplot2"
-             ,"DT")
+             ,"DT"
+             ,"shinyjs")
 
 
 load_pkg(packages)
@@ -159,8 +160,32 @@ FROM TABLA;
   saveRDS(datos, file = paste0(gsub("-", "", today()), " proveedores locales compra ágil", ".rds"))
   
 } else {
-  datos <- readRDS(file = '20240114 proveedores locales compra ágil.rds')
+  datos <- readRDS(file = file.path(wd_path, datasets$files[1]))
 }
 
 
 datos <- setDT(datos)
+
+
+regiones <- tibble(
+  `Región de Despacho` = c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16)
+  ,NombreRegion = c('Tarapacá', 'Antofagasta','Atacama'
+                   ,'Coquimbo','Valparaíso','O`Higgins'
+                   ,'Maule','Biobío','Araucanía'
+                   ,'Los Lagos','Aysén','Magallanes'
+                   ,'Metropolitana','Los Ríos','Arica y Parinacota','Ñuble'))
+
+datos_rubros_region <- datos %>% 
+  mutate(FechaPublicacion = as.Date(FechaPublicacion)) %>% 
+  group_by(FechaPublicacion, `Región de Despacho`,level1) %>% 
+  summarise(ofertas = n()
+            ,solicitudes = sum(EsProveedorSeleccionado)
+            ,proveedores = n_distinct(`Razón Social Proveedor`)) %>% 
+  arrange(desc(ofertas)) %>% 
+  inner_join(regiones, by = 'Región de Despacho')  
+  # setDT() %>% 
+  # melt(id.vars = c("FechaPublicacion", "Región de Despacho", "level1", "ofertas", "NombreRegion")
+  #      ,measure.vars = c("ofertas", "solicitudes", "proveedores"))
+
+
+#total_por_tipo <- aggregate(ofertas ~ level1 + `Región de Despacho`, data = datos_rubros_region, sum)
