@@ -1,188 +1,329 @@
 
-# Contenido de script1.R
-cat("Ejecutando 20240114 descarga datos_rubros_region.R ...\n")
-
-# Llamar a script
-
-loaded <- TRUE #¿Los datos están cargados? 
-
+loaded <- TRUE #¿Están los datos cargados? 
 
 if (!loaded){
-  source("20240114 descarga datos.R")  
+  source("C:/o/OneDrive - DCCP/Escritorio/Proyectos/Preferencias EMT y Compras Regionales/emt_pl_dccp/20240114 descarga datos.R")
 }
 
 
-cat("Fin de 20240114 descarga datos_rubros_region.R\n")
+datos_rubros <- datos %>% 
+  group_by(level1) %>% 
+  summarise(ofertas = n_distinct(CodigoCotizacion)
+            ,solicitudes = n_distinct(CodigoSolicitudCotizacion)
+            ,proveedores = n_distinct(entCode))
 
-# datos_rubros_region <- datos %>% 
-#   mutate(dia = as.Date(FechaPublicacion)) %>% 
-#   group_by(dia, level1) %>% 
-#   summarise(ofertas = n())
-
+# ui
 ui <- fluidPage(
   titlePanel("Datos compra Ágil"),
   navbarPage(
-    "Análisis",
-    tabPanel("por Rubro (Nivel 1, código ONU)",
-             fluidRow(
-               column(width = 3,
-                      h4("Configuración")
-                      ,helpText("En este panel, puedes filtrar los datos por variable, región, fecha y rubro de la solicitud (Codigo ONU)")
-                      #Filtro de variable
-                      ,varSelectInput(inputId = "inputId", label = "Seleccionar variable:"
-                                      , data = datos_rubros_region[,c("ofertas", "solicitudes")]
-                                      ,selected = "ofertas"
-                                      , multiple = FALSE)
-                      
-                      # Filtro de región
-                      ,selectInput("region_filter_product", "Seleccionar región:",
-                                  choices = unique(datos_rubros_region$`NombreRegion`),
-                                  selected = unique(datos_rubros_region$`NombreRegion`)[1],
-                                  multiple = TRUE)
-                      # Filtro de fecha
-                      ,dateRangeInput("date_filter_product", "Seleccionar rango de fechas:",
-                                     start = min(datos_rubros_region$FechaPublicacion), end = max(datos_rubros_region$FechaPublicacion),
-                                     min = min(datos_rubros_region$FechaPublicacion), max = max(datos_rubros_region$FechaPublicacion))
-                      # Filtro de tipo de producto
-                      ,selectInput("product_filter_product", "Seleccionar Rubro:",
-                                  choices = unique(datos_rubros_region$level1),
-                                  selected = unique(datos_rubros_region$level1)[1:10], # Selecciona solo los primeros tres
-                                  multiple = TRUE)
-                      ,downloadButton("downloadButton", "Descargar Datos Filtrados")
-                      ,helpText("Aquí puedes descargar los datos filtrados")
-               ),
-               column(width = 3,
-                      h4("Data Frame"),
-                      DTOutput("table_product")
-               ),
-               column(width = 6,
-                      h4("Gráfico de Torta"),
-                      plotOutput("bar_chart_product")
-               )
-             )
+    "",
+    
+    tabPanel(
+      "Análisis",
+      fluidRow(
+        column(
+          width = 3,
+          
+          #h4("Según rubro"),
+          h4("Filtros"),
+          varSelectInput(
+            inputId = "inputId_rubro",
+            label = "Seleccionar variable:",
+            data = datos_rubros[,c("ofertas", "solicitudes", "proveedores")]
+            ,selected = "CodigoCotizacion",
+            multiple = FALSE
+          ),
+          # selectInput(
+          #   "region_filter_product", 
+          #   "Seleccionar región:",
+          #   choices = unique(datos$NombreRegion),
+          #   selected = unique(datos$NombreRegion)[1],
+          #   multiple = TRUE
+          # ),
+          # dateRangeInput(
+          #   "date_filter_rubro", 
+          #   "Seleccionar rango de fechas:",
+          #   start = min(datos$FechaPublicacion),
+          #   end = max(datos$FechaPublicacion),
+          #   min = min(datos$FechaPublicacion),
+          #   max = max(datos$FechaPublicacion)
+          # ),
+          selectInput(
+            "product_filter_rubro", 
+            "Seleccionar Rubro:",
+            choices = unique(datos$level1),
+            selected = unique(datos$level1)[1:10],
+            multiple = TRUE
+          )
+          ,downloadButton("downloadButton_product", "Descargar Datos Filtrados")
+          ,helpText("Aquí puedes descargar los datos filtrados")
+        )
+        ,column(width = 9, h4("Gráfico de Torta"), plotOutput("bar_chart_rubro"))
+        ,column(width = 4, h4("Data Frame"), DTOutput("table_rubro"))
+        
+      )
+      
+      
+    #   ,fluidRow(
+    #     column(
+    #       width = 3,
+    #       h4("Configuración"),
+    #       varSelectInput(
+    #         inputId = "inputId_product",
+    #         label = "Seleccionar variable:",
+    #         data = datos[,c("CodigoCotizacion", "CodigoSolicitudCotizacion", "entCode")],
+    #         selected = "CodigoCotizacion",
+    #         multiple = FALSE
+    #       ),
+    #       selectInput(
+    #         "region_filter_product", 
+    #         "Seleccionar región:",
+    #         choices = unique(datos$NombreRegion),
+    #         selected = unique(datos$NombreRegion)[1],
+    #         multiple = TRUE
+    #       ),
+    #       dateRangeInput(
+    #         "date_filter_product", 
+    #         "Seleccionar rango de fechas:",
+    #         start = min(datos$FechaPublicacion),
+    #         end = max(datos$FechaPublicacion),
+    #         min = min(datos$FechaPublicacion),
+    #         max = max(datos$FechaPublicacion)
+    #       ),
+    #       selectInput(
+    #         "product_filter_product", 
+    #         "Seleccionar Rubro:",
+    #         choices = unique(datos$level1),
+    #         selected = unique(datos$level1)[1:10],
+    #         multiple = TRUE
+    #       ),
+    #       downloadButton("downloadButton_product", "Descargar Datos Filtrados"),
+    #       helpText("Aquí puedes descargar los datos filtrados")
+    #     )
+    #     ,column(width = 9, h4("Gráfico de Torta"), plotOutput("bar_chart_product"))
+    #     #,column(width = 4, h4("Data Frame"), DTOutput("table_product"))
+    #     
+    #   )
+    #   
+    #   
+    #   
+    #   
+    #   ,    fluidRow(
+    #     column(
+    #       width = 3,
+    #       h4("Configuración"),
+    #       varSelectInput(
+    #         inputId = "inputId_series",
+    #         label = "Seleccionar variable:",
+    #         data = datos[,c("CodigoCotizacion", "CodigoSolicitudCotizacion", "entCode")],
+    #         selected = "ofertas",
+    #         multiple = FALSE
+    #       ),
+    #       selectInput(
+    #         "region_filter_series", 
+    #         "Seleccionar región:",
+    #         choices = unique(datos$NombreRegion),
+    #         selected = unique(datos$NombreRegion),
+    #         multiple = FALSE
+    #       ),
+    #       dateRangeInput(
+    #         "date_filter_series", 
+    #         "Seleccione rango de fechas:",
+    #         start = min(datos$FechaPublicacion),
+    #         end = max(datos$FechaPublicacion),
+    #         min = min(datos$FechaPublicacion),
+    #         max = max(datos$FechaPublicacion)
+    #       ),
+    #       selectInput(
+    #         "product_filter_series", 
+    #         "Seleccionar tipo de producto:",
+    #         choices = unique(datos$level1),
+    #         selected = unique(datos$level1)[1],
+    #         multiple = TRUE
+    #       )
+    #     ),
+    #     column(width = 5, h4("Gráfico de Series de Tiempo"), plotOutput("plot_series")),
+    #     column(width = 4, h4("Vista de datos"), DTOutput("table_series"))
+    #   )
+   
+    
+     )
     ),
-    tabPanel("Series de Tiempo",
-             fluidRow(
-               column(width = 3,
-                      h4("Configuración")
-                      ,varSelectInput(inputId = "inputId", label = "Seleccionar variable:"
-                                      , data = datos_rubros_region[,c("ofertas", "solicitudes", "proveedores")]
-                                      ,selected = "ofertas"
-                                      , multiple = FALSE)
-                      # Filtro de región
-                      ,selectInput("region_filter", "Seleccionar región:",
-                                  choices = unique(datos_rubros_region$`NombreRegion`),
-                                  selected = unique(datos_rubros_region$`NombreRegion`),
-                                  multiple = FALSE),
-                      # Filtro de fecha
-                      dateRangeInput("date_filter", "Seleccione rango de fechas:",
-                                     start = min(datos_rubros_region$FechaPublicacion), end = max(datos_rubros_region$FechaPublicacion),
-                                     min = min(datos_rubros_region$FechaPublicacion), max = max(datos_rubros_region$FechaPublicacion)),
-                      # Filtro de tipo de producto
-                      selectInput("product_filter", "Seleccionar tipo de producto:",
-                                  choices = unique(datos_rubros_region$level1),
-                                  selected = unique(datos_rubros_region$level1)[1], # Selecciona solo los primeros tres
-                                  multiple = TRUE)
-               ),
-               column(width = 4,
-                      h4("Vista de datos_rubros_region"),
-                      DTOutput("table")
-               ),
-               column(width = 5,
-                      h4("Gráfico de Series de Tiempo"),
-                      plotOutput("plot")
-               )
-             )
-    )
+    tabPanel(
+      "Series de Tiempo",
+  
   )
 )
 
-# Definir el servidor
+
+#****************************************************************************************************
+# server ============================================================================================
+#****************************************************************************************************
+
+
 server <- function(input, output, session) {
   
   # Función para actualizar opciones del filtro del rubro en tiempo real
+  # 
   observe({
-    updateSelectInput(session, "product_filter", choices = unique(datos_rubros_region$level1),
-                      selected = input$product_filter)
+  
+      updateSelectInput(session, "product_filter_rubro", choices = unique(datos_rubros$level1),
+                        selected = input$product_filter_rubro)
+    
   })
+  
+  # Función para actualizar opciones del filtro del rubro en tiempo real
+  # 
+  # observe({
+  #   updateSelectInput(session, "product_filter_product", choices = unique(datos$level1),
+  #                     selected = input$product_filter_product)
+  # })
   
   # Función para actualizar opciones del filtro de tipo de producto en tiempo real
-  observe({
-    updateSelectInput(session, "product_filter_product", choices = unique(datos_rubros_region$level1),
-                      selected = input$product_filter_product)
+  # observe({
+  #   updateSelectInput(session, "product_filter_series", choices = unique(datos$level1),
+  #                     selected = input$product_filter_series)
+  # })
+  
+  # Filtrar datos según la fecha y el tipo de producto seleccionados
+  filtered_data_rubro <- reactive({
+    datos_rubros[
+     # datos$FechaPublicacion >= input$date_filter_product[1] &
+    #    datos$FechaPublicacion <= input$date_filter_product[2] &
+        datos$level1 %in% input$product_filter_product,
+    ] 
   })
   
-  # Filtrar datos_rubros_region según la fecha y el tipo de producto seleccionados
-  filtered_data <- reactive({
-    datos_rubros_region[datos_rubros_region$FechaPublicacion >= input$date_filter[1] & datos_rubros_region$FechaPublicacion <= input$date_filter[2] &
-                          datos_rubros_region$level1 %in% input$product_filter & datos_rubros_region$`NombreRegion` %in% input$region_filter, ]
+  # Filtrar datos según la fecha y el tipo de producto seleccionados
+  # filtered_data_product <- reactive({
+  #   datos[
+  #     datos$FechaPublicacion >= input$date_filter_product[1] &
+  #       datos$FechaPublicacion <= input$date_filter_product[2] &
+  #       datos$level1 %in% input$product_filter_product &
+  #       datos$`NombreRegion` %in% input$region_filter_product,
+  #   ] %>% group_by(NombreRegion, level1) %>% 
+  #     summarise(CodigoCotizacion = n_distinct(CodigoCotizacion)
+  #               ,CodigoSolicitudCotizacion = n_distinct(CodigoSolicitudCotizacion)
+  #               ,entCode = n_distinct(entCode))
+  # })
+  
+  
+  
+  # Filtrar datos según la fecha y el tipo de producto seleccionados
+  # filtered_data_series <- reactive({
+  #   datos[
+  #     datos$FechaPublicacion >= input$date_filter_product[1] &
+  #       datos$FechaPublicacion <= input$date_filter_product[2] &
+  #       datos$level1 %in% input$product_filter_product &
+  #       datos$`NombreRegion` %in% input$region_filter_product,
+  #   ] %>% group_by(FechaPublicacion, NombreRegion, level1) %>% 
+  #     summarise(ofertas = n_distinct(CodigoCotizacion)
+  #               ,solicitudes = n_distinct(CodigoSolicitudCotizacion)
+  #               ,proveedores = n_distinct(entCode))
+  # })
+  
+  #***************************************************************************
+  # Servidor: Gráfico de barras ==============================================
+  #***************************************************************************
+  
+  output$table_rubro <- renderDT({
+    datatable(
+      aggregate(get(input$inputId_rubro) ~ level1,
+                data = filtered_data_rubro(), sum),
+      options = list(scrollY = "700px", paging = FALSE),
+      colnames = c('Código ONU (Nivel 1)' = 'level1', 'Total' = paste0("get(input$inputId_product)"))
+    )
   })
   
-  # Filtrar datos_rubros_region según la fecha y el tipo de producto seleccionados
-  filtered_data_product <- reactive({
-    datos_rubros_region[datos_rubros_region$FechaPublicacion >= input$date_filter_product[1] & datos_rubros_region$FechaPublicacion <= input$date_filter_product[2] &
-                          datos_rubros_region$level1 %in% input$product_filter_product & datos_rubros_region$`NombreRegion` %in% input$region_filter_product, ]
-  })
-  
-
-  
-  output$table_product <- renderDT({
-    #variable_seleccionada <- input$value
-    datatable(aggregate(get(input$inputId) ~ level1
-        , data = filtered_data_product(), sum), options = list(scrollY = "400px", paging = FALSE))
-  })
-  
-
-  output$bar_chart_product <- renderPlot({
-    variable_seleccionada <- input$inputId
+  output$bar_chart_rubro <- renderPlot({
+    variable_seleccionada <- input$inputId_rubro
     
-    total_por_tipo <- filtered_data_product() %>%
-      group_by(level1, NombreRegion) %>%
-      summarise(value = sum(!!sym(variable_seleccionada)))
-    
+    total_por_tipo <- filtered_data_rubro() %>%
+      group_by(level1) %>%
+      summarise(value = sum(!!sym(input$inputId_rubro)))
     
     total_por_tipo$level1 <- str_wrap(total_por_tipo$level1, width = 15)
     
-    
     bar_chart <- ggplot(total_por_tipo, aes(x = reorder(level1, -value), y = value, fill = reorder(level1, -value))) +
       geom_bar(stat = "identity", color = "white", position = "dodge") +
-      geom_text(aes(label = scales::comma(round(value), big.mark = ".", decimal.mark = ",")),
-                position = position_dodge(width = 1), vjust = -0.5, size = 4, color = "black") +
+      geom_text(
+        aes(
+          label = scales::comma(round(value), big.mark = ".", decimal.mark = ",")
+        ),
+        position = position_dodge(width = 1),
+        vjust = -0.5,
+        size = 4,
+        color = "black"
+      ) +
+      labs(y = "Cantidad de ")+
       theme_minimal() +
-      theme(legend.position = "top", axis.text.x = element_blank()
-            ,legend.key.width = unit(1, "cm")  # Ajusta el ancho de la leyenda
-            ,legend.key.height = unit(1, "cm")
-            #,plot.title =  element_text(face = "bold", size = 30)
-            ) +
-      scale_fill_manual(name = "Tipo de Producto"
-                        , values = scales::hue_pal()(length(unique(datos_rubros_region$level1)))) +
-      facet_grid(~NombreRegion, scales = "free_y", space = "free_y")
+      theme(
+        legend.position = "top",
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        legend.key.width = unit(1, "cm"),  # Ajusta el ancho de la leyenda
+        legend.key.height = unit(1, "cm")
+        ,plot.title =  element_text(face = "bold", size = 100)
+      ) +
+      scale_fill_manual(
+        name = "Rubro",
+        values = scales::hue_pal()(length(unique(datos$level1)))
+      ) +
+      facet_grid(~NombreRegion, scales = "free_y", space = "free_y")+
+      coord_flip()
     
     print(bar_chart)
-  }, height = 700, width = 600)
+  }, height = 500)
   
+  #*************************************************************************************
+  # Servidor: Gráfico de series de tiempo ==============================================
+  #*************************************************************************************
   
-  
-  output$table <- renderDT({
-    datatable(filtered_data(), options = list(scrollY = "400px", paging = TRUE))
+  # Filtrar datos según la fecha y el tipo de producto seleccionados
+  filtered_data_series <- reactive({
+    datos[
+      datos$FechaPublicacion >= input$date_filter_series[1] &
+        datos$FechaPublicacion <= input$date_filter_series[2] &
+        datos$level1 %in% input$product_filter_series &
+        datos$`NombreRegion` %in% input$region_filter_series,
+    ]
   })
   
-  output$plot <- renderPlot({
-    ggplot(filtered_data(), aes(x = `FechaPublicacion`, y = ofertas, group = level1)) +
-      geom_line(aes(color = level1)) +
+  output$table_series <- renderDT({
+    datatable(filtered_data_series(), options = list(scrollY = "400px", paging = TRUE))
+  })
+  
+  output$plot_series <- renderPlot({
+    
+    variable_seleccionada <- input$inputId_series
+    
+    total_por_tipo <- filtered_data_series() %>%
+      group_by(FechaPublicacion, NombreRegion, level1) %>%
+      summarise(value = sum(!!sym(variable_seleccionada)))
+    
+    ggplot(total_por_tipo, aes(x = `FechaPublicacion`, y = value, group = level1)) +
+      geom_line(aes(color = level1),  linewidth = 1.5) +
       labs(title = "Series de Tiempo", x = "Fecha", y = "ofertas") +
       theme_minimal() +
-      theme(legend.position = "top")+
-      scale_color_manual(name = "Rubro", 
-                         values = setNames(scales::hue_pal()(length(unique(datos_rubros_region$level1))), 
-                                           unique(datos_rubros_region$level1)))
-  })
+      theme(legend.position = "top") +
+      scale_color_manual(
+        name = "Rubro",
+        values = setNames(
+          scales::hue_pal()(length(unique(datos$level1))),
+          unique(datos$level1)
+        )
+      )
+  },height = 700)
   
-  # Habilitar shinyjs
-  shinyjs::enable("downloadButton")
+  
+  #*************************************************************************************
+  # Servidor: Habilitar shinyjs ==============================================
+  #*************************************************************************************
+  
+  shinyjs::enable("downloadButton_product")
   
   # Manejador para el botón de descarga
-  output$downloadButton <- downloadHandler(
+  output$downloadButton_product <- downloadHandler(
     filename = function() {
       paste("filtered_data_product", Sys.Date(), ".csv", sep = "")
     },
@@ -190,9 +331,8 @@ server <- function(input, output, session) {
       write.csv(filtered_data_product(), file, row.names = FALSE)
     }
   )
-
+  
 }
 
-
-# Crear la aplicación Shiny
+# Ejecutar la aplicación Shiny
 shinyApp(ui, server)

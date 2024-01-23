@@ -5,7 +5,9 @@ rm(list = ls())
 #Fija el directorio de trabajo ==========================================================
 #
 
-wd_path = "C:/o/OneDrive - DCCP/Escritorio/Proyectos/Preferencias EMT y Compras Regionales/emt_pl_dccp/datos"
+wd_path = "C:/o/OneDrive - DCCP/Escritorio/Proyectos/Preferencias EMT y Compras Regionales/emt_pl_dccp/datos/"
+
+data_path = "C:/o/OneDrive - DCCP/Escritorio/Proyectos/Preferencias EMT y Compras Regionales/emt_pl_dccp/datos"
 
 setwd(wd_path)
 
@@ -27,66 +29,77 @@ packages = c("tidyverse" #Conjunto integral de paquetes para manipular y analiza
              , "readr"
              , "VennDiagram"
              , "RColorBrewer"
-             ,"openxlsx"
+             , "openxlsx"
              , "shiny"
-             ,"ggplot2"
-             ,"DT"
-             ,"shinyjs")
+             , "ggplot2"
+             , "DT"
+             , "shinyjs")
 
 
 load_pkg(packages)
 
-detalles = function(path = wd_path, pattern = "*.rds"){
-  require(dplyr)
-  
-  details = file.info(path = paste0(wd_path), list.files(pattern=pattern))
-  
-  details = details[with(details, order(as.POSIXct(mtime), decreasing = TRUE)), ] %>% 
-    filter(isdir==FALSE)
-  
-  details$files = rownames(details)
-  
-  rownames(details) = NULL
-  
-  return(details)
-}
 
-datasets <- detalles()
 
-# Plan de análisis: 
-# 1. cruzar las tablas gblEnterpriseAddress con prcPOHeader, a través de los campos eadCode y porShipAddress
-# 2. Verificar en qué proporción coinciden los campos porShipAddress y porInVoiceAddress
-# 3. Probar la conjetura respecto de qué el campo porShipAddress se modifica 
-# siempre y cuándo la dirección de despacho seaa distinta de la que se provee
-#  por default, ya que en dicho caso bastaría con modificar el formulario 
-#  4. Cruzar la información sobre dirección de envío desde diferentes fuentes, 
-#  por ejemplo, comparar la información de las órdenes de compra con las
-#  solicitudes de cotización del módulo de compra ágil y la informacción contenida
-#  en licitaciones
 
-up_to_date <- TRUE # ¿Los datos están actualizados? 
+consultar_y_guardar <- function(x,y, window = -11
+                                ,wd_path = data_path
+                                ,tipoConsulta = "cotizaciones compra ágil"
+                                ,depurar = TRUE
+                                ,updated = TRUE) {
+  
+  detalles = function(path = wd_path, pattern = "*.rds"){
+    require(dplyr)
+    
+    details = file.info(path = paste0(wd_path), list.files(pattern=pattern))
+    
+    details = details[with(details, order(as.POSIXct(mtime), decreasing = TRUE)), ] %>% 
+      filter(isdir==FALSE)
+    
+    details$files = rownames(details)
+    
+    rownames(details) = NULL
+    
+    return(details)
+  }
+  
+  datasets <- detalles(path = wd_path)
 
-if (!up_to_date){
-  
-  # #Establece conexiones a los diferentes servidores =======================================
-  # 
-  # #con = RODBC::odbcConnect("aquiles", uid = "datawarehouse", pwd = "datawarehouse") #TIVIT
-  
-  con2 = RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse") #Aquiles
-  
-  con3 = RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse") #Datawarehouse
   
   
+  if (!updated){
+    
+    con2 = RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse") #Aquiles
+    
+    con3 = RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse") #Datawarehouse
   
-  #############################################################################################
-  # pserSellerCity es llenado a mano, no me sirve. Duplica innecesariamente los datos
-  #############################################################################################  
+  if (length(years) == 0 | !tipoConsulta %in% c('cotizaciones compra ágil'
+                                                 , 'órdenes de compra')) {
+    mensaje <- "Parámetros inválidos. Asegúrate de proporcionar años y/o tipo de consulta válidos."
+    return(mensaje)
+  }
   
-  start <- Sys.time()
   
-  datos <- sqlQuery(con2, "
-		  WITH TABLA AS (SELECT 
-	       SC.CodigoSolicitudCotizacion
+  require(lubridate)
+  
+  # Es importante notar que la función switch es sensible al uso del operador de asignación
+  # porque al usar <- en lugar de = arroja un error. OJO 
+  
+  ejecutarConsulta <- switch (tipoConsulta,
+    'cotizaciones compra ágil' = function(x, y, window ) {
+      sqlQuery(con2, sprintf(
+      "
+		  DECLARE @MONTH AS INT;
+      DECLARE @YEAR AS INT;
+                  
+      SET @MONTH = %s;
+      SET @YEAR = %s;
+                  
+      DECLARE @CURRENTMONTH datetime = datetimefromparts(@YEAR, @MONTH, 1,0,0,0,0);
+      DECLARE @startDate datetime = dateadd(month,%s, @currentMonth)
+      , @endDate datetime = dateadd(month, 1, @currentMonth);
+      
+      WITH TABLA AS (SELECT 
+	     SC.CodigoSolicitudCotizacion
 		  ,SC.Descripcion
 		  ,SC.FechaPublicacion
 		  ,CP.CodigoProducto
@@ -143,7 +156,8 @@ if (!up_to_date){
         			,LEN(LOWER(REPLACE(REPLACE(O1.orgTaxID,'.',''),'-','')))-1) as VARCHAR(50)) = CAST(SII.RUT AS VARCHAR(50))  
 	  INNER JOIN [Estudios].[dbo].[THTamanoProveedor] as TP ON TP.entcode = E.entCode AND TP.[AñoTributario]=2022 
 	  ---------------------------------------------------
-	  WHERE YEAR(SC.FechaPublicacion) = 2023
+	  WHERE (SC.FechaPublicacion < @endDate) AND
+          (SC.FechaPublicacion >= @startDate)
 	  ) 
 	  SELECT 
 		TABLA.*,
@@ -153,58 +167,45 @@ if (!up_to_date){
 			WHEN size = 'Sin categoría' THEN 'sin categoría'
 			ELSE 'Grande' END) AS [Proveedor Local 2]
 	FROM TABLA;
-")
-  
-  
-  end <- Sys.time()
-  
-  print(difftime(end, start, units = "mins"))
-  
-  saveRDS(datos, file = paste0(gsub("-", "", today()), " proveedores locales compra ágil", ".rds"))
-  
-} else {
-  datos <- readRDS(file = file.path(wd_path, datasets[grep("proveedores locales", datasets$files)[1],c("files")]))
-}
-
-
-
-up_to_date <- FALSE # ¿Los datos están actualizados? 
-
-if (!up_to_date){
-  
-  # #Establece conexiones a los diferentes servidores =======================================
-  # 
-  # #con = RODBC::odbcConnect("aquiles", uid = "datawarehouse", pwd = "datawarehouse") #TIVIT
-  
-  con2 = RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse") #Aquiles
-  
-  con3 = RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse") #Datawarehouse
-  
-  
-  
-start <- Sys.time()
-
-datos_oc <- sqlQuery(con3, 
-  "SELECT DISTINCT 
+  ",x,y, window)
+              ) 
+              },
+  'órdenes de compra' = function(x,y,window){
+    sqlQuery(con3, sprintf(
+      "
+    DECLARE @MONTH AS INT;
+    DECLARE @YEAR AS INT;
+                
+    SET @MONTH = %s;
+    SET @YEAR = %s;
+                
+    DECLARE @CURRENTMONTH datetime = datetimefromparts(@YEAR, @MONTH, 1,0,0,0,0);
+    DECLARE @startDate datetime = dateadd(month,%s, @currentMonth)
+    , @endDate datetime = dateadd(month, 1, @currentMonth);
+      
+      
+    SELECT DISTINCT 
 	  OL.[poiID]
-      ,OL.[porID]
-      ,OL.[CodigoOC]
+    ,OL.[porID]
+    ,OL.[CodigoOC]
 	  ,LC.NumeroAdq
 	  ,LC.Link
+    ,T.Year
+    ,T.Month
 	  ,OL.[NombreItem] 
 	  ,PR.NombreProducto 
 	  ,RU.RubroN1
 	  ,RU.RubroN2
 	  ,RU.RubroN3
-      ,OL.[DescripcionItem]
-    --  ,OL.[UnidaddeMedida]
-      ,OL.[CantidadItem]
-      ,OL.[MonedaOC]
-      ,OL.[Monto]
-      ,OL.[MontoUSD]
-      ,OL.[MontoCLP]
-      ,OL.[MontoCLF]
-      ,OL.[MontoUTM]
+    ,OL.[DescripcionItem]
+    ,DU.uomName [Unidad de Medida]
+    ,OL.[CantidadItem]
+    ,OL.[MonedaOC]
+    ,OL.[Monto]
+    ,OL.[MontoUSD]
+    ,OL.[MontoCLP]
+    ,OL.[MontoCLF]
+    ,OL.[MontoUTM]
 	  ,P.RazonSocialSucursal [Nombre Proveedor]
 	  ,P.RUTSucursal [Rut Proveedor]
 	  ,P.ActividadSucursal[Actividad Proveedor]
@@ -215,7 +216,6 @@ datos_oc <- sqlQuery(con3,
 	  ,C.ActividadUnidaddeCompra [Actividad Unidad de Compra]
 	  ,I.NombreInstitucion [Nombre Institución]
 	  ,S.Sector [Sector Institución]
---	  , (COUNT(DISTINCT OC.CodigoOC)) [Cantidad OC]
 	  ,(CASE OC.porIsIntegrated
 		WHEN 3 THEN 'Compra Ágil'
 		ELSE (
@@ -240,20 +240,104 @@ datos_oc <- sqlQuery(con3,
   INNER JOIN [DM_Transaccional].[dbo].[DimSector] as S ON I.IdSector = S.IdSector
   INNER JOIN [DM_Transaccional].[dbo].[THTamanoProveedor] as TP ON TP.entcode = E.entCode AND TP.[AñoTributario]=2022 
   INNER JOIN [DM_Transaccional].[dbo].[DimTamanoProveedor] as DT ON TP.idTamano = DT.IdTamano
-  WHERE T.Year = 2023 AND 
-  OC.IDEstadoOC >= 5 
-                  ")
-
-end <- Sys.time()
-
-print(difftime(end, start, units = "mins"))
-
-saveRDS(datos_oc, file = paste0(gsub("-", "", today()), " datos órdenes de compra", ".rds"))
-
+  INNER JOIN [DM_Transaccional].[dbo].[DimUOM] as DU ON OL.UnidaddeMedida = DU.uomCode
+  WHERE (T.Date < @endDate) 
+  AND (T.Date >= @startDate) 
+  AND OC.IDEstadoOC >= 5
+      ",x,y, window)
+    )
+  }
+  )
+  
+  descargar_guardar <- function(x, y, window) {
+    
+    data <- ejecutarConsulta(x = x, y = y, window = window) 
+    
+    grupo1 = c('ofertan'
+               , 'adjudican'
+               ,'login'
+               ,'inscritos')
+    
+    if (depurar){
+      if (tipoConsulta%in%grupo1){
+        data <- data %>% 
+          mutate(sello = ifelse(`Sello Mujer`=="Mujeres",1,0)) %>% 
+          arrange(desc(sello)) %>% 
+          filter(!duplicated(EntCode)) %>% 
+          select(-sello)
+      } else {
+        data <- data %>% 
+          mutate(sello = ifelse(`Sello Mujer`=="Mujeres",1,0)
+                 ,codigo = paste0(Organismo,EntCode)) %>% 
+          group_by(Organismo) %>% 
+          arrange(desc(sello)) %>% 
+          filter(!duplicated(codigo)) %>% 
+          select(-sello)
+      }
+    }
+    
+    
+    return(data)
+  }
+  
+  total <- data.table::data.table()
+  
+  for (year in y) {
+    if (year == year(today())) {
+      start <- Sys.time()
+      x <- month(today()) 
+      y <- year
+      window<- -(x-1)
+      
+      data <- descargar_guardar(x, y, window)
+      total <- rbind(total, data)
+      
+      end <- Sys.time()
+      
+      tiempo_transcurrido <- difftime(end, start, units = "mins")
+      
+      cat("Descarga para el año", year, "completada en", round(tiempo_transcurrido,1), "minutos.", "\n")
+      
+    } else {
+      start <- Sys.time()
+      y <- year
+      
+      data <- descargar_guardar(x, y, window)
+      total <- rbind(total, data)
+      
+      end <- Sys.time()
+      tiempo_transcurrido <- difftime(end, start, units = "mins")
+      
+      cat("Descarga para el año", year, "completada en", round(tiempo_transcurrido,1), "minutos.", "\n")
+    }
+  }
+  
+  # Guarda el objeto data en un archivo con nombre diferente según el tipo de consulta
+  saveRDS(total, file = paste0(gsub("-", "", today()), gsub(" ", "_", tipoConsulta), " en algún procedimiento de compra ", y, ".rds"))
 } else {
-  datos <- readRDS(file = file.path(wd_path, datasets[grep("órdenes de compra", datasets$files)[1],c("files")]))
+  total <- readRDS(file = file.path(wd_path, datasets[grep(tipoConsulta, datasets$files)[1],c("files")]))  
+  }
+  
+  return(total)
+  
 }
 
+
+years <- c(2023, 2024)
+
+datos <-  consultar_y_guardar(wd_path = data_path
+                                 , x = 12
+                                 , y = years
+                                 , tipoConsulta = "cotizaciones compra ágil"
+                                 , depurar = FALSE
+                                 , updated = TRUE)
+
+datos_oc <-  consultar_y_guardar(wd_path = data_path
+                              , x = 12
+                              , y = years
+                              , tipoConsulta = "órdenes de compra"
+                              , depurar = FALSE
+                              , updated = FALSE)
 
 
 
@@ -267,11 +351,6 @@ regiones <- tibble(
 
 datos <- setDT(datos) %>% 
   inner_join(regiones, by = c("Región de Despacho"))
-
-datos <- datos %>% mutate(FechaPublicacion = as.Date(FechaPublicacion), 
-                          ofertas = NA, 
-                          solicitudes = NA, 
-                          proveedores = NA)
 
 
 datos_rubros <- datos %>% 
@@ -294,6 +373,3 @@ datos_ruregMonth <- datos %>%
   summarise(ofertas = n_distinct(CodigoCotizacion)
             ,solicitudes = n_distinct(CodigoSolicitudCotizacion)
             ,proveedores = n_distinct(entCode))
-
-
-
