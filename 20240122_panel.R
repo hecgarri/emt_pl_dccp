@@ -130,6 +130,64 @@ ui <- fluidPage(
 
       
     )
+    , tabPanel(
+      "Análisis de datos Proveedores",
+      fluidRow(
+        column(
+          width = 3,
+          h4("Filtros"),
+          selectInput(
+            "product_filter_users", 
+            "Seleccionar Rubro:",
+            choices = unique(datos_rubros$level1),
+            selected = unique(datos_rubros$level1)[1:10],
+            multiple = TRUE
+          )
+          ,downloadButton("downloadButton_rubros", "Descargar Datos Filtrados")
+          ,helpText("Aquí puedes descargar los datos filtrados")
+        )
+        ,column(
+          width = 9
+          , h4("Los rubros más transados")
+          , plotOutput("bar_chart_rubros")
+        )
+        )
+        ,column(
+          width = 9
+          , 
+        )
+        #,column(width = 3, h4("Data Frame"), DTOutput("table_rubro"))
+        
+      )
+      ,
+      fluidRow(
+        column(
+          width = 3,
+        )
+        ,column(
+          width = 9
+          , 
+        )
+        #,column(width = 3, h4("Data Frame"), DTOutput("table_rubro"))
+        
+      )
+      ,
+      fluidRow(
+        column(
+          width = 3,
+          
+        )
+        ,column(
+          width = 9
+          ,
+        )
+        #,column(width = 3, h4("Data Frame"), DTOutput("table_rubro"))
+        
+      )
+      
+      
+      
+    )
   )
   # ,
   # tabPanel(
