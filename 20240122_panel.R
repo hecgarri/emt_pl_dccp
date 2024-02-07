@@ -64,8 +64,8 @@ ui <- fluidPage(
           ,selectInput(
             "product_filter_ruregreg", 
             "Seleccionar Región:",
-            choices = unique(datos_rureg$NombreRegion),
-            selected = unique(datos_rureg$NombreRegion)[13],
+            choices = unique(datos_rureg$NombreRegion.x),
+            selected = unique(datos_rureg$NombreRegion.x)[13],
             multiple = TRUE
           )
           ,selectInput(
@@ -103,8 +103,8 @@ ui <- fluidPage(
           ,selectInput(
             "product_filter_ruregregMonth", 
             "Seleccionar Región:",
-            choices = unique(datos_ruregMonth$NombreRegion),
-            selected = unique(datos_ruregMonth$NombreRegion)[13],
+            choices = unique(datos_ruregMonth$NombreRegion.x),
+            selected = unique(datos_ruregMonth$NombreRegion.x)[13],
             multiple = TRUE
           )
           ,selectInput(
@@ -170,7 +170,7 @@ server <- function(input, output, session) {
     
   observe({
     
-    updateSelectInput(session, "product_filter_ruregreg", choices = unique(datos_rureg$NombreRegion),
+    updateSelectInput(session, "product_filter_ruregreg", choices = unique(datos_rureg$NombreRegion.x),
                       selected = input$product_filter_ruregreg)
     
   })
@@ -187,7 +187,7 @@ server <- function(input, output, session) {
   filtered_data_rureg <- reactive({
     datos_rureg[
       (datos_rureg$level1 %in% input$product_filter_ruregru) & 
-      (datos_rureg$NombreRegion %in% input$product_filter_ruregreg),
+      (datos_rureg$NombreRegion.x %in% input$product_filter_ruregreg),
     ] 
   })
   
@@ -199,7 +199,7 @@ server <- function(input, output, session) {
   
   observe({
     
-    updateSelectInput(session, "product_filter_ruregregMonth", choices = unique(datos_ruregMonth$NombreRegion),
+    updateSelectInput(session, "product_filter_ruregregMonth", choices = unique(datos_ruregMonth$NombreRegion.x),
                       selected = input$product_filter_ruregregMonth)
     
   })
@@ -216,7 +216,7 @@ server <- function(input, output, session) {
   filtered_dataruregMonth <- reactive({
     datos_ruregMonth[
       (datos_ruregMonth$level1 %in% input$product_filter_ruregruMonth) & 
-        (datos_ruregMonth$NombreRegion %in% input$product_filter_ruregregMonth),
+        (datos_ruregMonth$NombreRegion.x %in% input$product_filter_ruregregMonth),
     ] 
   })
   
@@ -268,7 +268,7 @@ server <- function(input, output, session) {
         values = scales::hue_pal()(length(unique(datos_rubros$level1)))
       ) 
     # +
-    #   facet_grid(~NombreRegion, scales = "free_y", space = "free_y")+
+    #   facet_grid(~NombreRegion.x, scales = "free_y", space = "free_y")+
     #   coord_flip()
     
     print(bar_chart)
@@ -291,7 +291,7 @@ server <- function(input, output, session) {
     variable_seleccionada <- input$inputId_rureg
     
     total_por_tipo <- filtered_data_rureg() %>%
-      group_by(NombreRegion,level1) %>%
+      group_by(NombreRegion.x,level1) %>%
       summarise(value = sum(!!sym(input$inputId_rureg)))
     
     total_por_tipo$level1 <- str_wrap(total_por_tipo$level1, width = 15)
@@ -320,7 +320,7 @@ server <- function(input, output, session) {
       scale_fill_manual(
         name = "Rubro",
         values = scales::hue_pal()(length(unique(datos_rureg$level1)))
-      ) +facet_grid(~NombreRegion, scales = "free_y", space = "free_y")+
+      ) +facet_grid(~NombreRegion.x, scales = "free_y", space = "free_y")+
       coord_flip()+
       theme(strip.text.x = element_text(size = 25))
     
@@ -353,7 +353,7 @@ server <- function(input, output, session) {
     
     
     # %>%
-    #   group_by(month,NombreRegion,level1) %>%
+    #   group_by(month,NombreRegion.x,level1) %>%
     #   summarise(value = sum(!!sym(input$inputId_rubro)))
     # 
     # total_por_tipo$level1 <- str_wrap(total_por_tipo$level1, width = 15)
@@ -368,7 +368,7 @@ server <- function(input, output, session) {
       scale_color_manual(name = "Rubro", 
                          values = setNames(scales::hue_pal()(length(unique(datos_ruregMonth$level1))), 
                                            unique(datos_ruregMonth$level1)))+
-      facet_grid(~NombreRegion, scales = "free_y", space = "free_y")+
+      facet_grid(~NombreRegion.x, scales = "free_y", space = "free_y")+
       theme(strip.text.x = element_text(size = 25)))
     
     
