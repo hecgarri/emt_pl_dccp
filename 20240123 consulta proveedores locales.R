@@ -419,12 +419,14 @@ datos <- consultar_y_guardar(wd_path = data_path
 
 data_ag <- datos %>% 
   group_by(year,level1, `Región de Despacho`,`Proveedor Local 2`) %>%
-  distinct(CodigoSolicitudCotizacion, .keep_all = TRUE) %>% 
+  #distinct(CodigoSolicitudCotizacion, .keep_all = TRUE) %>% 
   summarise(solicitudes = n_distinct(CodigoSolicitudCotizacion)
             ,ofertas = n_distinct(CodigoCotizacion)
-            ,proveedores = n_distinct(entCode)) %>% 
+            ,proveedores = n_distinct(entCode)
+            ,MontoTotalProducto = sum(MontoTotalProducto, na.rm = TRUE)) %>% 
   setDT() %>% 
-  data.table::dcast(year+level1+`Región de Despacho`~`Proveedor Local 2`, value.var = c("solicitudes", "ofertas", "proveedores")) %>% 
+  data.table::dcast(year+level1+`Región de Despacho`~`Proveedor Local 2`
+                    , value.var = c("solicitudes", "ofertas", "proveedores", "MontoTotalProducto")) %>% 
   mutate(interseccion = ifelse(`solicitudes_Local`>`solicitudes_No Local`
                                & ofertas_Local >`ofertas_No Local`
                                & proveedores_Local>`proveedores_No Local`,"Sí","No")
@@ -432,12 +434,54 @@ data_ag <- datos %>%
                         | ofertas_Local >`ofertas_No Local`
                         | proveedores_Local>`proveedores_No Local`, "Sí", "No"))  
 
-data_ag %>% 
-  group_by(year,level1) %>% 
-  summarise(interseccion = sum(ifelse(interseccion == "No",1,0))
-            ,monto = sum(ifelse(interseccion == "No",MontoTotalProducto,0))) %>% 
-  arrange(desc(interseccion)) %>% View()
+tabla_y <- data_ag %>% 
+  group_by(year,level1, interseccion) %>% 
+  filter(year == 2023) %>% 
+  summarise(regiones = n()
+            ,monto = sum(MontoTotalProducto_Grande+MontoTotalProducto_Local+`MontoTotalProducto_No Local`)) %>% 
+  arrange(desc(interseccion)) %>% 
+  setDT() %>% 
+  data.table::dcast(year+level1~interseccion, value.var = c("regiones", "monto"))
 
+tabla_o <- data_ag %>% 
+  group_by(year,level1, union) %>% 
+  filter(year == 2023) %>% 
+  summarise(regiones = n()
+            ,monto = sum(MontoTotalProducto_Grande+MontoTotalProducto_Local+`MontoTotalProducto_No Local`)) %>% 
+  #arrange(desc(interseccion)) %>% 
+  setDT() %>% 
+  data.table::dcast(year+level1~union, value.var = c("regiones", "monto"))
+
+segun_rg <- datos %>% 
+  group_by(year,level1, `Región de Despacho`,id_regionProv) %>%
+  #distinct(CodigoSolicitudCotizacion, .keep_all = TRUE) %>% 
+  summarise(solicitudes = n_distinct(CodigoSolicitudCotizacion)
+            ,ofertas = n_distinct(CodigoCotizacion)
+            ,proveedores = n_distinct(entCode)
+            ,MontoTotalProducto = sum(MontoTotalProducto, na.rm = TRUE)) %>% 
+  setDT() %>% 
+  data.table::dcast(year+level1+`Región de Despacho`~`id_regionProv`
+                    , value.var = c("solicitudes", "ofertas", "proveedores", "MontoTotalProducto")) 
+
+wb <- createWorkbook()
+
+addWorksheet(wb, sheetName = 'Proveedor Local - Rubro')
+
+writeData(wb, sheet = 'Proveedor Local - Rubro', x = data_ag)
+
+addWorksheet(wb, sheetName = 'Tabla (Y)')
+
+writeData(wb, sheet = 'Tabla (Y)', x = tabla_y)
+
+addWorksheet(wb, sheetName = 'Tabla (O)')
+
+writeData(wb, sheet = "Tabla (O)", x = tabla_o)
+
+addWorksheet(wb, sheetName = 'Proveedores inter - Rubro')
+
+writeData(wb, sheet = "Proveedores inter - Rubro", x = segun_rg)
+
+saveWorkbook(wb, "20240213 estadísticas proveedores.xlsx", overwrite = TRUE)
 
 
 
