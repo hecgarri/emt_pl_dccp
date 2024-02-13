@@ -59,7 +59,7 @@ consultar_y_guardar <- function(x,y, window = -11
   }
   
   datasets <- detalles(path = wd_path)
-
+  
   
   
   if (!updated){
@@ -67,24 +67,24 @@ consultar_y_guardar <- function(x,y, window = -11
     con2 = RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse") #Aquiles
     
     con3 = RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse") #Datawarehouse
-  
-  if (length(years) == 0 | !tipoConsulta %in% c('cotizaciones compra ágil'
-                                                 , 'órdenes de compra'
-                                                ,'usuarios proveedores')) {
-    mensaje <- "Parámetros inválidos. Asegúrate de proporcionar años y/o tipo de consulta válidos."
-    return(mensaje)
-  }
-  
-  
-  require(lubridate)
-  
-  # Es importante notar que la función switch es sensible al uso del operador de asignación
-  # porque al usar <- en lugar de = arroja un error. OJO 
-  
-  ejecutarConsulta <- switch (tipoConsulta,
-    'cotizaciones compra ágil' = function(x = x, y = y, window = window) {
-      sqlQuery(con2, sprintf(
-      "
+    
+    if (length(years) == 0 | !tipoConsulta %in% c('cotizaciones compra ágil'
+                                                  , 'órdenes de compra'
+                                                  ,'usuarios proveedores')) {
+      mensaje <- "Parámetros inválidos. Asegúrate de proporcionar años y/o tipo de consulta válidos."
+      return(mensaje)
+    }
+    
+    
+    require(lubridate)
+    
+    # Es importante notar que la función switch es sensible al uso del operador de asignación
+    # porque al usar <- en lugar de = arroja un error. OJO 
+    
+    ejecutarConsulta <- switch (tipoConsulta,
+                                'cotizaciones compra ágil' = function(x = x, y = y, window = window) {
+                                  sqlQuery(con2, sprintf(
+                                    "
 		  DECLARE @MONTH AS INT;
       DECLARE @YEAR AS INT;
                   
@@ -173,11 +173,11 @@ consultar_y_guardar <- function(x,y, window = -11
 			ELSE 'Grande' END) AS [Proveedor Local 2]
 	FROM TABLA;
   ",x,y, window)
-              ) 
-              },
-  'órdenes de compra' = function(x = x, y = y, window = window) {
-    sqlQuery(con3,sprintf( 
-      "
+                                  ) 
+                                },
+	'órdenes de compra' = function(x = x, y = y, window = window) {
+	  sqlQuery(con3,sprintf( 
+	    "
     DECLARE @MONTH AS INT;
     DECLARE @YEAR AS INT;
                 
@@ -250,10 +250,10 @@ consultar_y_guardar <- function(x,y, window = -11
   AND (T.Date >= @startDate) 
   AND OC.IDEstadoOC >= 5
       ",x,y, window))
-  
-  },
+	  
+	},
 	'usuarios proveedores' = function(x = x, y = y, window = window) {
-    query <- paste("DECLARE @MONTH AS INT;
+	  query <- paste("DECLARE @MONTH AS INT;
       DECLARE @YEAR AS INT;
                   
       SET @MONTH = ",x,";
@@ -304,78 +304,78 @@ consultar_y_guardar <- function(x,y, window = -11
                 AND U.usrLastLogin <= @endDate AND U.usrLastLogin >= @startDate
                 AND O.orgClass = 1
                 AND o.orgtaxid not in ('0-0','0.000.000-0','1-9','A.t21-125','yyyyyyyyyy')")
+	  
+	  sqlQuery(con2, query)
+	}
+    )
     
-    sqlQuery(con2, query)
+    descargar_guardar <- function(x, y, window) {
+      
+      data <- ejecutarConsulta(x = x, y = y, window = window) 
+      
+      grupo1 = c('ofertan'
+                 , 'adjudican'
+                 ,'login'
+                 ,'inscritos')
+      
+      if (depurar){
+        if (tipoConsulta%in%grupo1){
+          data <- data %>% 
+            mutate(sello = ifelse(`Sello Mujer`=="Mujeres",1,0)) %>% 
+            arrange(desc(sello)) %>% 
+            filter(!duplicated(EntCode)) %>% 
+            select(-sello)
+        } else {
+          data <- data %>% 
+            mutate(sello = ifelse(`Sello Mujer`=="Mujeres",1,0)
+                   ,codigo = paste0(Organismo,EntCode)) %>% 
+            group_by(Organismo) %>% 
+            arrange(desc(sello)) %>% 
+            filter(!duplicated(codigo)) %>% 
+            select(-sello)
+        }
+      }
+      
+      
+      return(data)
     }
-  )
-  
-  descargar_guardar <- function(x, y, window) {
     
-    data <- ejecutarConsulta(x = x, y = y, window = window) 
+    total <- data.table::data.table()
     
-    grupo1 = c('ofertan'
-               , 'adjudican'
-               ,'login'
-               ,'inscritos')
-    
-    if (depurar){
-      if (tipoConsulta%in%grupo1){
-        data <- data %>% 
-          mutate(sello = ifelse(`Sello Mujer`=="Mujeres",1,0)) %>% 
-          arrange(desc(sello)) %>% 
-          filter(!duplicated(EntCode)) %>% 
-          select(-sello)
+    for (year in y) {
+      if (year == year(today())) {
+        start <- Sys.time()
+        x <- month(today()) 
+        y <- year
+        window<- -(x-1)
+        
+        data <- descargar_guardar(x, y, window)
+        total <- rbind(total, data)
+        
+        end <- Sys.time()
+        
+        tiempo_transcurrido <- difftime(end, start, units = "mins")
+        
+        cat("Descarga para el año", year, "completada en", round(tiempo_transcurrido,1), "minutos.", "\n")
+        
       } else {
-        data <- data %>% 
-          mutate(sello = ifelse(`Sello Mujer`=="Mujeres",1,0)
-                 ,codigo = paste0(Organismo,EntCode)) %>% 
-          group_by(Organismo) %>% 
-          arrange(desc(sello)) %>% 
-          filter(!duplicated(codigo)) %>% 
-          select(-sello)
+        start <- Sys.time()
+        y <- year
+        
+        data <- descargar_guardar(x, y, window)
+        total <- rbind(total, data)
+        
+        end <- Sys.time()
+        tiempo_transcurrido <- difftime(end, start, units = "mins")
+        
+        cat("Descarga para el año", year, "completada en", round(tiempo_transcurrido,1), "minutos.", "\n")
       }
     }
     
-    
-    return(data)
-  }
-  
-  total <- data.table::data.table()
-  
-  for (year in y) {
-    if (year == year(today())) {
-      start <- Sys.time()
-      x <- month(today()) 
-      y <- year
-      window<- -(x-1)
-      
-      data <- descargar_guardar(x, y, window)
-      total <- rbind(total, data)
-      
-      end <- Sys.time()
-      
-      tiempo_transcurrido <- difftime(end, start, units = "mins")
-      
-      cat("Descarga para el año", year, "completada en", round(tiempo_transcurrido,1), "minutos.", "\n")
-      
-    } else {
-      start <- Sys.time()
-      y <- year
-      
-      data <- descargar_guardar(x, y, window)
-      total <- rbind(total, data)
-      
-      end <- Sys.time()
-      tiempo_transcurrido <- difftime(end, start, units = "mins")
-      
-      cat("Descarga para el año", year, "completada en", round(tiempo_transcurrido,1), "minutos.", "\n")
-    }
-  }
-  
-  # Guarda el objeto data en un archivo con nombre diferente según el tipo de consulta
-  saveRDS(total, file = paste0(gsub("-", "", today()),gsub(" ", "_", tipoConsulta), ".rds"))
-} else {
-  total <- readRDS(file = file.path(wd_path, datasets[grep(gsub(" ","_", tipoConsulta), datasets$files)[1],c("files")]))  
+    # Guarda el objeto data en un archivo con nombre diferente según el tipo de consulta
+    saveRDS(total, file = paste0(gsub("-", "", today()),gsub(" ", "_", tipoConsulta), ".rds"))
+  } else {
+    total <- readRDS(file = file.path(wd_path, datasets[grep(gsub(" ","_", tipoConsulta), datasets$files)[1],c("files")]))  
   }
   
   return(total)
@@ -415,98 +415,53 @@ datos <- consultar_y_guardar(wd_path = data_path
                              , depurar = FALSE
                              , updated = TRUE)
 
-datos_oc <- consultar_y_guardar(wd_path = data_path
-                              , x = 12
-                              , y = years
-                              , tipoConsulta = "órdenes de compra"
-                              , depurar = FALSE
-                              , updated = TRUE)
 
-datos_usuarios <- consultar_y_guardar(x = 12
-                                      ,y = years
-                                      , window = -2
-                                      ,wd_path = data_path
-                                      ,tipoConsulta = "usuarios proveedores"
-                                      ,depurar = FALSE
-                                      ,updated = TRUE)
 
-# file <- "C:/o/OneDrive - DCCP/Escritorio/Proyectos/Preferencias EMT y Compras Regionales/emt_pl_dccp/datos/20240124usuarios_proveedores.rds"
+data_ag <- datos %>% 
+  group_by(year,level1, `Región de Despacho`,`Proveedor Local 2`) %>%
+  distinct(CodigoSolicitudCotizacion, .keep_all = TRUE) %>% 
+  summarise(solicitudes = n_distinct(CodigoSolicitudCotizacion)
+            ,ofertas = n_distinct(CodigoCotizacion)
+            ,proveedores = n_distinct(entCode)) %>% 
+  setDT() %>% 
+  data.table::dcast(year+level1+`Región de Despacho`~`Proveedor Local 2`, value.var = c("solicitudes", "ofertas", "proveedores")) %>% 
+  mutate(interseccion = ifelse(`solicitudes_Local`>`solicitudes_No Local`
+                               & ofertas_Local >`ofertas_No Local`
+                               & proveedores_Local>`proveedores_No Local`,"Sí","No")
+         ,union = ifelse(`solicitudes_Local`>`solicitudes_No Local`
+                        | ofertas_Local >`ofertas_No Local`
+                        | proveedores_Local>`proveedores_No Local`, "Sí", "No"))  
+
+data_ag %>% 
+  group_by(year,level1) %>% 
+  summarise(interseccion = sum(ifelse(interseccion == "No",1,0))
+            ,monto = sum(ifelse(interseccion == "No",MontoTotalProducto,0))) %>% 
+  arrange(desc(interseccion)) %>% View()
+
+
+
+
+
+# library(dplyr)
 # 
-# usuarios <- readRDS(file)
-
-regiones <- tibble(
-  `Región de Despacho` = c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16)
-  ,NombreRegion = c('Tarapacá', 'Antofagasta','Atacama'
-                    ,'Coquimbo','Valparaíso','O`Higgins'
-                    ,'Maule','Biobío','Araucanía'
-                    ,'Los Lagos','Aysén','Magallanes'
-                    ,'Metropolitana','Los Ríos','Arica y Parinacota','Ñuble'))
-
-datos <- setDT(datos) %>%
-  inner_join(regiones, by = c("Región de Despacho")) %>%
-  inner_join(regiones, join_by(id_regionProv == `Región de Despacho`))
-
-
-datos_rubros <- datos %>%
-  group_by(year, level1) %>%
-  summarise(ofertas = n_distinct(CodigoCotizacion)
-            ,solicitudes = n_distinct(CodigoSolicitudCotizacion)
-            ,proveedores = n_distinct(entCode))
-
-
-datos_rureg <- datos %>%
-  group_by(NombreRegion.x, level1) %>%
-  summarise(ofertas = n_distinct(CodigoCotizacion)
-            ,solicitudes = n_distinct(CodigoSolicitudCotizacion)
-            ,proveedores = n_distinct(entCode))
-
-datos_ruregMonth <- datos %>%
-  mutate(FechaPublicacion = as.Date(FechaPublicacion)
-         ,month = lubridate::month(FechaPublicacion)) %>%
-  group_by(month,NombreRegion.x, level1) %>%
-  summarise(ofertas = n_distinct(CodigoCotizacion)
-            ,solicitudes = n_distinct(CodigoSolicitudCotizacion)
-            ,proveedores = n_distinct(entCode))
-
-
-datos_ruregInst <- datos %>%
-  group_by(`Razón Social Comprador`,NombreRegion.x, level1) %>%
-  summarise(ofertas = n_distinct(CodigoCotizacion)
-             ,solicitudes = n_distinct(CodigoSolicitudCotizacion)
-             ,proveedores = n_distinct(entCode))
-
-
-
-
-usuarios_matched <- function(region, rubro, anio, mes) {
-  query <- sprintf("
-    select distinct 
-    d.*
-    ,du.*
-    from datos as d 
-    inner join datos_usuarios as du on d.entCode = du.EntCode 
-    where d.[Región de Despacho] = '%s' 
-    and level1 = '%s' 
-    and year = '%s' 
-    and month = '%s'",
-    region, rubro, anio, mes)
-  
-  return(sqldf(query))
-}
-
-
-start <- Sys.time()
-lala <- usuarios_matched(region = 15, rubro = 'Alimentos, bebidas y tabaco', anio = 2023, mes = 12)
-end <- Sys.time()
-difftime(end, start, units = c("mins"))
-
-# Identificar aquel proveedor que se adjudica el procedimiento además de la cantidad solicitudes y ofertas
-# , el monto del mecanismo de compra
+# # Crear un data frame de ejemplo
+# df <- data.frame(
+#   var_1_column = c(1, 2, 3),
+#   column_var_2 = c(4, 5, 6),
+#   column_3_var = c(7, 8, 9)
+# )
 # 
+# # Operación dependiendo del nombre de la columna
+# df <- df %>%
+#   mutate(across(
+#     everything(),
+#     ~ case_when(
+#       grepl("var_1", names(df)) ~ . * 2,       # Duplicar los valores de las columnas que contienen "var_1" en su nombre
+#       grepl("var_2", names(df)) ~ . + 10,      # Sumar 10 a los valores de las columnas que contienen "var_2" en su nombre
+#       grepl("var_3", names(df)) ~ . - 5,       # Restar 5 a los valores de las columnas que contienen "var_3" en su nombre
+#       TRUE ~ .                                  # Si ninguna condición coincide, mantener el valor original
+#     )
+#   ))
+# 
+# print(df)
 
-# Denuncias y reclamos según proveedor
-# Cantidad de 
-
-
-# Calcular el porcentaje que representan aquellos rubros en que la compra a proveedores no locales es superior
-#  a los locales con respecto al total del mecanismo

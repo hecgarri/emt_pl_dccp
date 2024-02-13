@@ -435,6 +435,7 @@ usuarios_matched <- sqldf("
                           ,du.*
                           from datos as d
                           inner join datos_usuarios as du on d.entCode = du.EntCode
+                          where
                           ") 
 
 end <- Sys.time()
