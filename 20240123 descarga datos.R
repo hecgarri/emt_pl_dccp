@@ -478,27 +478,27 @@ datos_ruregInst <- datos %>%
 
 
 
-usuarios_matched <- function(region, rubro, anio, mes) {
-  query <- sprintf("
-    select distinct 
-    d.*
-    ,du.*
-    from datos as d 
-    inner join datos_usuarios as du on d.entCode = du.EntCode 
-    where d.[Región de Despacho] = '%s' 
-    and level1 = '%s' 
-    and year = '%s' 
-    and month = '%s'",
-    region, rubro, anio, mes)
-  
-  return(sqldf(query))
-}
-
-
-start <- Sys.time()
-lala <- usuarios_matched(region = 15, rubro = 'Alimentos, bebidas y tabaco', anio = 2023, mes = 12)
-end <- Sys.time()
-difftime(end, start, units = c("mins"))
+# usuarios_matched <- function(region, rubro, anio, mes) {
+#   query <- sprintf("
+#     select distinct 
+#     d.*
+#     ,du.*
+#     from datos as d 
+#     inner join datos_usuarios as du on d.entCode = du.EntCode 
+#     where d.[Región de Despacho] = '%s' 
+#     and level1 = '%s' 
+#     and year = '%s' 
+#     and month = '%s'",
+#     region, rubro, anio, mes)
+#   
+#   return(sqldf(query))
+# }
+# 
+# 
+# start <- Sys.time()
+# lala <- usuarios_matched(region = 15, rubro = 'Alimentos, bebidas y tabaco', anio = 2023, mes = 12)
+# end <- Sys.time()
+# difftime(end, start, units = c("mins"))
 
 # Identificar aquel proveedor que se adjudica el procedimiento además de la cantidad solicitudes y ofertas
 # , el monto del mecanismo de compra
