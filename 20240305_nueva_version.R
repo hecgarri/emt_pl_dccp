@@ -12,10 +12,11 @@ ui <- fluidPage(
   sidebarLayout(
     sidebarPanel(
       dateRangeInput("fecha", "Rango de fechas:",
-                     start = Sys.Date() %m-% months(2),
+                     start = Sys.Date() %m-% months(13),
                      end = Sys.Date() %m-% months(1)),
       uiOutput("region_select"),
       uiOutput("procedencia_select"), # Nuevo selectInput para procedencia
+      uiOutput("institucion_select"), # Nuevo selectInput según institución
       actionButton("consultar", "Consultar"),
       downloadButton("downloadData", "Descargar Excel")
     ),
@@ -31,6 +32,7 @@ server <- function(input, output, session) {
   # Definir una variable para almacenar las regiones disponibles
   regiones_disponibles <- NULL
   procedencias_disponibles <- NULL # Variable para procedencias
+  instituciones_disponibles <- NULL # Variable para procedencias
   
   # Cargar las regiones disponibles al iniciar la aplicación
   observe({
@@ -51,6 +53,15 @@ server <- function(input, output, session) {
                                                                   ELSE 'Trato Directo' 
                                                                 END)
                                                         END AS Procedencia FROM [DM_Transaccional].[dbo].[THOrdenesCompra] OC"))
+# instituciones_disponibles <<- unique(sqlQuery(con3, paste0(
+# "SELECT DISTINCT
+# L.Region
+# ,[NombreInstitucion]
+# FROM [DM_Transaccional].[dbo].[DimInstitucion] as D
+# INNER JOIN [DM_Transaccional].[dbo].[DimComprador] as C ON D.entCode=C.entCode
+# INNER JOIN [DM_Transaccional].[dbo].[DimLocalidad] as L ON C.IDLocalidadUnidaddeCompra = L.IDLocalidad
+# WHERE L.Region = '",input$region,"'")
+# ))
   })
   
   # En el selectInput, puedes hacer la selección de "Todas las regiones"
@@ -92,6 +103,7 @@ server <- function(input, output, session) {
         "SELECT  
         T.Year
         ,L.Region
+        ,UPPER(I.NombreInstitucion) [Nombre Institucion]
         ,(CASE  WHEN OC.porisintegrated=3 THEN 'Compra Agil'
                           ELSE (CASE  OC.IDProcedenciaOC
                           WHEN 703 THEN 'Convenio Marco'
@@ -141,7 +153,8 @@ server <- function(input, output, session) {
                                           WHEN 701 THEN 'Licitación Pública'
                                           WHEN 1401 THEN 'Licitación Pública'
                                           WHEN 702 THEN 'Licitación Privada'
-                                          ELSE 'Trato Directo' END)END)")
+                                          ELSE 'Trato Directo' END)END)
+                         ,UPPER(I.NombreInstitucion)")
       
       withProgress(message = "Realizando consulta a la base de datos", {
         resultado <- sqlQuery(con3, consulta)
