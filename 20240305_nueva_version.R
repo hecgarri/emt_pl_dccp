@@ -2,6 +2,11 @@
 library(shiny)
 library(RODBC)
 library(openxlsx)
+library(lubridate)
+library(tidyverse)
+library(DT)
+library(shinyjs)
+library(sqldf)
 
 # Establece conexiones a los diferentes servidores
 con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")
@@ -21,7 +26,7 @@ ui <- fluidPage(
       downloadButton("downloadData", "Descargar Excel")
     ),
     mainPanel(
-      tableOutput("resultado")
+      DTOutput("resultado")
     )
   )
 )
@@ -32,7 +37,7 @@ server <- function(input, output, session) {
   # Definir una variable para almacenar las regiones disponibles
   regiones_disponibles <- NULL
   procedencias_disponibles <- NULL # Variable para procedencias
-  instituciones_disponibles <- NULL # Variable para procedencias
+  institucion_disponibles <- NULL # Variable para procedencias
   
   # Cargar las regiones disponibles al iniciar la aplicación
   observe({
@@ -40,7 +45,10 @@ server <- function(input, output, session) {
     regiones_disponibles <<- sqlQuery(con3, "SELECT DISTINCT L.Region, L.IDRegion FROM [DM_Transaccional].[dbo].[DimLocalidad] L")
     # Agregar la opción "Todas las regiones"
     regiones_disponibles <- rbind(data.frame(Region = "Todas las regiones", IDRegion = NA), regiones_disponibles)
-    
+  })
+  
+  # Cargar las regiones disponibles al iniciar la aplicación
+  observe({
     # Obtener las procedencias disponibles
     procedencias_disponibles <<- unique(sqlQuery(con3, "SELECT DISTINCT 
                                                         CASE OC.porisintegrated 
@@ -53,16 +61,45 @@ server <- function(input, output, session) {
                                                                   ELSE 'Trato Directo' 
                                                                 END)
                                                         END AS Procedencia FROM [DM_Transaccional].[dbo].[THOrdenesCompra] OC"))
-# instituciones_disponibles <<- unique(sqlQuery(con3, paste0(
-# "SELECT DISTINCT
-# L.Region
-# ,[NombreInstitucion]
-# FROM [DM_Transaccional].[dbo].[DimInstitucion] as D
-# INNER JOIN [DM_Transaccional].[dbo].[DimComprador] as C ON D.entCode=C.entCode
-# INNER JOIN [DM_Transaccional].[dbo].[DimLocalidad] as L ON C.IDLocalidadUnidaddeCompra = L.IDLocalidad
-# WHERE L.Region = '",input$region,"'")
-# ))
+    # Agregar la opción "Todas las regiones"
+    #procedencias_disponibles <- rbind(data.frame(Region = "Todas las procedencias", IDRegion = NA), procedencias_disponibles)
   })
+  
+  # Obtener las institucion disponibles al cambiar la región seleccionada
+  # Aquí incluí un archivo rds que muestra la combinación de institucion y regiones a la fecha indicada
+  observe({
+    
+    region_seleccionada <- input$region
+    print(class(region_seleccionada))
+    print(region_seleccionada)
+    
+    if (is.null(region_seleccionada) || region_seleccionada == "") {
+      # Asigna un valor predeterminado si input$region es nulo o vacío
+      region_seleccionada <- "Todas las regiones"
+    }
+    # Obtener la región seleccionada por el usuario
+    if(region_seleccionada == "Todas las regiones") {
+      # Si se selecciona "Todas las regiones", no se aplica filtro por región en la consulta SQL
+      consulta_instituciones <- "SELECT DISTINCT 
+                      UPPER([NombreInstitucion]) AS NombreInstitucion,
+                      L.Region 
+                      FROM [DM_Transaccional].[dbo].[DimInstitucion] AS I 
+                      INNER JOIN [DM_Transaccional].[dbo].[DimComprador] AS C ON I.entCode = C.entCode
+                      INNER JOIN [DM_Transaccional].[dbo].[DimLocalidad] AS L ON C.IDLocalidadUnidaddeCompra = L.IDLocalidad"
+    } else {
+      consulta_instituciones <- paste0("SELECT DISTINCT 
+                            UPPER([NombreInstitucion]) AS NombreInstitucion,
+                            L.Region 
+                            FROM [DM_Transaccional].[dbo].[DimInstitucion] AS I 
+                            INNER JOIN [DM_Transaccional].[dbo].[DimComprador] AS C ON I.entCode = C.entCode
+                            INNER JOIN [DM_Transaccional].[dbo].[DimLocalidad] AS L ON C.IDLocalidadUnidaddeCompra = L.IDLocalidad
+                            WHERE L.Region = '", region_seleccionada, "'")
+    }
+    
+    institucion_disponibles <<- sqlQuery(con3, consulta_instituciones)
+  })
+  
+  
   
   # En el selectInput, puedes hacer la selección de "Todas las regiones"
   output$region_select <- renderUI({
@@ -78,9 +115,16 @@ server <- function(input, output, session) {
                 selected = "Todas las procedencias")
   })
   
+  # Nuevo selectInput para institucion
+  output$institucion_select <- renderUI({
+    selectizeInput("institucion", "Selecciona una Institución:",
+                choices = c("Todas las instituciones", institucion_disponibles$NombreInstitucion),
+                selected = "Todas las instituciones")
+  })
+  
   observeEvent(input$consultar, {
     # Realizar la consulta solo cuando se presiona el botón "Consultar"
-    output$resultado <- renderTable({
+    output$resultado <- renderDT({
       req(input$consultar)  # Espera a que se presione el botón "Consultar"
       
       # Obtener la región seleccionada por el usuario
@@ -97,6 +141,14 @@ server <- function(input, output, session) {
         procedencia_seleccionada <- NULL
       } else {
         procedencia_seleccionada <- input$procedencia
+      }
+      
+      # Obtener la Institución seleccionada por el usuario
+      if(input$institucion == "Todas las instituciones") {
+        # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+        institucion_seleccionada <- NULL
+      } else {
+        institucion_seleccionada <- input$institucion
       }
       
       consulta <- paste0(
@@ -144,6 +196,11 @@ server <- function(input, output, session) {
                                                 WHEN 1401 THEN 'Licitación Pública'
                                                 WHEN 702 THEN 'Licitación Privada'
                                                 ELSE 'Trato Directo' END) END) = '", procedencia_seleccionada, "'")
+      }
+      
+      # Agregar condición de región si no es "Todas las regiones"
+      if(!is.null(institucion_seleccionada)) {
+        consulta <- paste0(consulta, " AND I.NombreInstitucion = '", institucion_seleccionada, "'")
       }
       
       consulta <- paste0(consulta, " GROUP BY T.Year, L.Region,
