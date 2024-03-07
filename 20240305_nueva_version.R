@@ -22,6 +22,7 @@ ui <- fluidPage(
       uiOutput("region_select"),
       uiOutput("procedencia_select"), # Nuevo selectInput para procedencia
       uiOutput("institucion_select"), # Nuevo selectInput según institución
+      uiOutput("sector_select"), # Nuevo selectInput según sector
       actionButton("consultar", "Consultar"),
       downloadButton("downloadData", "Descargar Excel")
     ),
@@ -38,6 +39,7 @@ server <- function(input, output, session) {
   regiones_disponibles <- NULL
   procedencias_disponibles <- NULL # Variable para procedencias
   institucion_disponibles <- NULL # Variable para procedencias
+  sectores_disponibles <- NULL 
   
   # Cargar las regiones disponibles al iniciar la aplicación
   observe({
@@ -99,7 +101,15 @@ server <- function(input, output, session) {
     institucion_disponibles <<- sqlQuery(con3, consulta_instituciones)
   })
   
-  
+  # Cargar las regiones disponibles al iniciar la aplicación
+  observe({
+    # Ejecutar la consulta SQL para obtener las regiones
+    sectores_disponibles <<- sqlQuery(con3, "SELECT DISTINCT [IdSector]
+      ,[Sector]
+  FROM [DM_Transaccional].[dbo].[DimSector]")
+    # Agregar la opción "Todas las regiones"
+    #regiones_disponibles <- rbind(data.frame(Region = "Todas las regiones", IDRegion = NA), regiones_disponibles)
+  })
   
   # En el selectInput, puedes hacer la selección de "Todas las regiones"
   output$region_select <- renderUI({
@@ -122,9 +132,18 @@ server <- function(input, output, session) {
                 selected = "Todas las instituciones")
   })
   
+  # Nuevo selectInput para institucion
+  output$institucion_select <- renderUI({
+    selectizeInput("sector", "Selecciona un sector:",
+                   choices = c("Todos los sectores", sectores_disponibles$Sector),
+                   selected = "Todos los sectores")
+  })
+  
+  datos_consultados <- reactiveVal(NULL)
+  
   observeEvent(input$consultar, {
     # Realizar la consulta solo cuando se presiona el botón "Consultar"
-    output$resultado <- renderDT({
+    
       req(input$consultar)  # Espera a que se presione el botón "Consultar"
       
       # Obtener la región seleccionada por el usuario
@@ -151,11 +170,27 @@ server <- function(input, output, session) {
         institucion_seleccionada <- input$institucion
       }
       
+      # Obtener la Institución seleccionada por el usuario
+      if(input$sector == "Todos los sectores") {
+        # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+        sector_seleccionado <- NULL
+      } else {
+        sector_seleccionado <- input$sector
+      }
+      
       consulta <- paste0(
-        "SELECT  
+        "      SELECT  
         T.Year
         ,L.Region
-        ,UPPER(I.NombreInstitucion) [Nombre Institucion]
+    		,T.Date [Fecha Envío OC]
+    		,OC.CodigoOC  
+    		,OC.NombreOC
+    		,OL.NombreItem [Nombre producto (ONU)]
+    		,OL.DescripcionItem
+    		,C.RUTUnidaddeCompra [RUT Unidad de Compra]
+    		,UPPER(C.NombreUnidaddeCompra) [Nombre Unidad de Compra]
+            ,UPPER(I.NombreInstitucion) [Nombre Institucion]
+    		,S.Sector
         ,(CASE  WHEN OC.porisintegrated=3 THEN 'Compra Agil'
                           ELSE (CASE  OC.IDProcedenciaOC
                           WHEN 703 THEN 'Convenio Marco'
@@ -164,22 +199,31 @@ server <- function(input, output, session) {
                           WHEN 702 THEN 'Licitación Privada'
                           ELSE 'Trato Directo' END)
         END) [Procedencia]
-        ,(COUNT(DISTINCT OC.CodigoOC)) [Cantidad OC]
-        ,(SUM(OL.MontoUSD)) [Monto USD]
-        ,(SUM(OL.MontoCLP)) [Monto CLP]
-        ,(SUM(OL.MontoCLF)) [Monto CLF]
-        
-        FROM [DM_Transaccional].[dbo].[THOrdenesCompraLinea] as OL 
-        INNER JOIN [DM_Transaccional].[dbo].[THOrdenesCompra] as OC ON OL.CodigoOC=OC.CodigoOC 
+    		,UPPER(P.RazonSocialSucursal) [RUT Proveedor]
+    		,P.RUTSucursal
+    		,L2.Region [Región Proveedor]
+    		,DTP.Tamano [Tamaño Proveedor]
+    		,RU.RubroN1 [Rubro Proveedor]
+    		,U.RUT [Rut Usuario comprador]
+    		,U.Nombres+' '+U.Apellidos as [Nombre Usuario comprador]
+    		,U.eMail [Correo Usuario comprador]
+    		,U.FechaUltLogin
+        FROM [DM_Transaccional].[dbo].[THOrdenesCompra] as OC 
+    		INNER JOIN [DM_Transaccional].[dbo].[THOrdenesCompraLinea] as OL  ON OC.porID = OL.porID
+    		INNER JOIN [DM_Transaccional].[dbo].[DimProducto] as DPR ON  OL.IDProducto = DPR.IDProducto
+    		INNER JOIN [DM_Transaccional].[dbo].[DimRubro] as RU ON DPR.IdRubro = RU.IdRubro
         INNER JOIN [DM_Transaccional].[dbo].[DimTiempo] as T ON OC.IDFechaEnvioOC = T.DateKey
-        INNER JOIN [DM_Transaccional].[dbo].[DimProducto] as PR ON OL.IDProducto=PR.IDProducto
         INNER JOIN [DM_Transaccional].[dbo].[DimProveedor] as P ON OC.IDSucursal=P.IDSucursal 
         INNER JOIN [DM_Transaccional].[dbo].[DimComprador] as C ON OC.IDUnidaddeCompra = C.IDUnidaddeCompra
         INNER JOIN [DM_Transaccional].[dbo].[DimLocalidad] as L ON L.IDLocalidad = C.IDLocalidadUnidaddeCompra
+    		INNER JOIN [DM_Transaccional].[dbo].[DimLocalidad] as L2 ON L2.IDLocalidad = P.IDLocalidadSucursal
         INNER JOIN [DM_Transaccional].[dbo].[DimEmpresa] as E ON P.entCode = E.entCode 
         INNER JOIN [DM_Transaccional].[dbo].[DimInstitucion] as I ON C.entCode = I.entCode
-        WHERE  OC.IDFechaEnvioOC BETWEEN '", gsub("-", "", input$fecha[1]), "' AND '", gsub("-", "", input$fecha[2]), "'
-        AND OC.IDEstadoOC IN  (4,5,6,7,12)"
+		    INNER JOIN [DM_Transaccional].[dbo].[DimSector] as S ON I.IdSector = S.IdSector
+    		LEFT JOIN [DM_Transaccional].[dbo].[THTamanoProveedor] as TP ON P.entCode=TP.entCode AND TP.AñoTributario = 2022
+    		LEFT JOIN [DM_Transaccional].[dbo].[DimTamanoProveedor] as DTP ON TP.idTamano = DTP.IdTamano
+    		LEFT JOIN [Dm_Usuario].[dbo].[TablonUsuarioComprador] as U ON OC.usrID = U.usrID
+        WHERE  OC.IDEstadoOC IN  (4,5,6,7,12)"
       )
       
       # Agregar condición de región si no es "Todas las regiones"
@@ -203,6 +247,11 @@ server <- function(input, output, session) {
         consulta <- paste0(consulta, " AND I.NombreInstitucion = '", institucion_seleccionada, "'")
       }
       
+      # Agregar condición de región si no es "Todas las regiones"
+      if(!is.null(sector_seleccionado)) {
+        consulta <- paste0(consulta, " AND S.Sector = '", sector_seleccionado, "'")
+      }
+      
       consulta <- paste0(consulta, " GROUP BY T.Year, L.Region,
                          (CASE OC.porisintegrated WHEN 3 THEN 'Compra Agil'
                           ELSE (CASE  OC.IDProcedenciaOC
@@ -215,30 +264,41 @@ server <- function(input, output, session) {
       
       withProgress(message = "Realizando consulta a la base de datos", {
         resultado <- sqlQuery(con3, consulta)
+        print(resultado)
+        datos_consultados(resultado)
         # Después de completar la consulta, restablecer el valor del botón a 0
         updateActionButton(session, "consultar", label = "Consultar", icon = icon("search"))
       })
       
-      return(resultado)
     })
+  
+  # Renderizar la tabla utilizando renderDT
+  output$resultado <- renderDT({
+    # Obtener los datos consultados
+    datos <- datos_consultados()
+    
+    # Verificar si los datos no están vacíos
+    if (!is.null(datos) && nrow(datos) > 0) {
+      datatable(datos)
+    } else {
+      # Mostrar un mensaje de que no hay datos disponibles
+      div("No hay datos disponibles")
+    }
   })
+
   
   
-  # Lógica para la descarga del archivo Excel
+  # Lógica para la descarga del archivo Excel 
   output$downloadData <- downloadHandler(
     filename = function() {
-      paste("data-", Sys.Date(), ".xlsx", sep="")
+      paste("data-", Sys.Date(), ".csv", sep="")
     },
     content = function(file) {
-      # Crear un libro de Excel
-      wb <- openxlsx::createWorkbook()
-      # Agregar una hoja de trabajo
-      sheet_name <- "Datos"
-      openxlsx::addWorksheet(wb, sheet_name)
-      # Escribir los datos en la hoja de trabajo
-      openxlsx::writeData(wb, sheet = sheet_name, x = output$resultado())
-      # Guardar el libro de Excel
-      openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+      # Utiliza la variable reactiva para obtener los datos consultados
+      datos <- datos_consultados()
+      if (!is.null(datos)) {
+        write.csv2(datos, file)
+      }
     }
   )
   
