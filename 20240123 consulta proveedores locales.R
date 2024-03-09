@@ -418,12 +418,13 @@ datos <- consultar_y_guardar(wd_path = data_path
 
 
 data_ag <- datos %>% 
+  #filter(year == 2023) %>% 
   group_by(year,level1, `Región de Despacho`,`Proveedor Local 2`) %>%
   #distinct(CodigoSolicitudCotizacion, .keep_all = TRUE) %>% 
   summarise(solicitudes = n_distinct(CodigoSolicitudCotizacion)
             ,ofertas = n_distinct(CodigoCotizacion)
             ,proveedores = n_distinct(entCode)
-            ,MontoTotalProducto = sum(MontoTotalProducto, na.rm = TRUE)) %>% 
+            ,MontoTotalProducto = sum(MontoTotalProducto*EsProveedorSeleccionado, na.rm = TRUE)) %>% 
   setDT() %>% 
   data.table::dcast(year+level1+`Región de Despacho`~`Proveedor Local 2`
                     , value.var = c("solicitudes", "ofertas", "proveedores", "MontoTotalProducto")) %>% 
@@ -433,6 +434,25 @@ data_ag <- datos %>%
          ,union = ifelse(`solicitudes_Local`>`solicitudes_No Local`
                         | ofertas_Local >`ofertas_No Local`
                         | proveedores_Local>`proveedores_No Local`, "Sí", "No"))  
+
+
+data_ag_productos <- datos %>% 
+  #filter(year == 2023) %>% 
+  group_by(year,level1, `Región de Despacho`,`Proveedor Local 2`, `productoname`) %>%
+  #distinct(CodigoSolicitudCotizacion, .keep_all = TRUE) %>% 
+  summarise(solicitudes = n_distinct(CodigoSolicitudCotizacion)
+            ,ofertas = n_distinct(CodigoCotizacion)
+            ,proveedores = n_distinct(entCode)
+            ,MontoTotalProducto = sum(MontoTotalProducto*EsProveedorSeleccionado, na.rm = TRUE)) %>% 
+  setDT() %>% 
+  data.table::dcast(year+level1+`Región de Despacho`+productoname~`Proveedor Local 2`
+                    , value.var = c("solicitudes", "ofertas", "proveedores", "MontoTotalProducto")) %>% 
+  mutate(interseccion = ifelse(`solicitudes_Local`>`solicitudes_No Local`
+                               & ofertas_Local >`ofertas_No Local`
+                               & proveedores_Local>`proveedores_No Local`,"Sí","No")
+         ,union = ifelse(`solicitudes_Local`>`solicitudes_No Local`
+                         | ofertas_Local >`ofertas_No Local`
+                         | proveedores_Local>`proveedores_No Local`, "Sí", "No"))  
 
 tabla_y <- data_ag %>% 
   group_by(year,level1, interseccion) %>% 
@@ -469,6 +489,10 @@ addWorksheet(wb, sheetName = 'Proveedor Local - Rubro')
 
 writeData(wb, sheet = 'Proveedor Local - Rubro', x = data_ag)
 
+addWorksheet(wb, sheetName = 'Proveedor Local - Producto')
+
+writeData(wb, sheet = 'Proveedor Local - Producto', x = data_ag_productos)
+
 addWorksheet(wb, sheetName = 'Tabla (Y)')
 
 writeData(wb, sheet = 'Tabla (Y)', x = tabla_y)
@@ -481,10 +505,16 @@ addWorksheet(wb, sheetName = 'Proveedores inter - Rubro')
 
 writeData(wb, sheet = "Proveedores inter - Rubro", x = segun_rg)
 
-saveWorkbook(wb, "20240213 estadísticas proveedores.xlsx", overwrite = TRUE)
+saveWorkbook(wb, "20240308 estadísticas proveedores.xlsx", overwrite = TRUE)
 
 
+wb <- createWorkbook()
 
+addWorksheet(wb, sheetName = 'Proveedor Local - producto')
+
+writeData(wb, sheet = 'Proveedor Local - producto', x = data_ag)
+
+saveWorkbook(wb, "20240307 estadísticas proveedores.xlsx", overwrite = TRUE)
 
 # library(dplyr)
 # 
