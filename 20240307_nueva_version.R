@@ -21,7 +21,10 @@ ui <- fluidPage(
       uiOutput("region_select"),
       uiOutput("procedencia_select"), # Nuevo selectInput para procedencia
       uiOutput("institucion_select"), # Nuevo selectInput según institución
+<<<<<<< HEAD
       uiOutput("sector_select"), #Nuevo selectInput según sector 
+=======
+>>>>>>> 3198ac5e88cc38320dd05a4c38959c0d31a7eca5
       actionButton("consultar", "Consultar"),
       downloadButton("downloadData", "Descargar Excel")
     ),
@@ -38,7 +41,10 @@ server <- function(input, output, session) {
   regiones_disponibles <- NULL
   procedencias_disponibles <- NULL # Variable para procedencias
   institucion_disponibles <- NULL # Variable para procedencias
+<<<<<<< HEAD
   sectores_disponibles <- NULL # variable para sectores
+=======
+>>>>>>> 3198ac5e88cc38320dd05a4c38959c0d31a7eca5
   
   # Cargar las regiones disponibles al iniciar la aplicación
   observe({
@@ -99,6 +105,7 @@ server <- function(input, output, session) {
     institucion_disponibles <<- sqlQuery(con3, consulta_instituciones)
   })
   
+<<<<<<< HEAD
   # Cargar las regiones disponibles al iniciar la aplicación
   observe({
     # Ejecutar la consulta SQL para obtener las regiones
@@ -108,6 +115,9 @@ server <- function(input, output, session) {
     # Agregar la opción "Todas las regiones"
     #regiones_disponibles <- rbind(data.frame(Region = "Todas las regiones", IDRegion = NA), regiones_disponibles)
   })
+=======
+  
+>>>>>>> 3198ac5e88cc38320dd05a4c38959c0d31a7eca5
   
   # En el selectInput, puedes hacer la selección de "Todas las regiones"
   output$region_select <- renderUI({
@@ -130,6 +140,7 @@ server <- function(input, output, session) {
                 selected = "Todas las instituciones")
   })
   
+<<<<<<< HEAD
   # Nuevo selectInput para institucion
   output$sector_select <- renderUI({
     selectInput("sector", "Selecciona un sector:",
@@ -137,6 +148,8 @@ server <- function(input, output, session) {
                 selected = "Todos los sectores")
   })
   
+=======
+>>>>>>> 3198ac5e88cc38320dd05a4c38959c0d31a7eca5
   # Definir variable reactiva para almacenar los datos consultados
   datos_consultados <- reactiveVal(NULL)
   
@@ -168,6 +181,7 @@ server <- function(input, output, session) {
       institucion_seleccionada <- input$institucion
     }
     
+<<<<<<< HEAD
     # Obtener la Institución seleccionada por el usuario
     if(input$sector == "Todos los sectores") {
       # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
@@ -176,12 +190,15 @@ server <- function(input, output, session) {
       sector_seleccionado <- input$sector
     }
     
+=======
+>>>>>>> 3198ac5e88cc38320dd05a4c38959c0d31a7eca5
     consulta <- paste0(
       "SELECT  
         T.Year
         ,L.Region
         ,T.Date [Fecha Envío OC]
         ,OC.NombreOC
+<<<<<<< HEAD
         ,OC.CodigoOC
         ,OL.NombreItem [Nombre producto]
         ,OL.DescripcionItem
@@ -190,6 +207,10 @@ server <- function(input, output, session) {
 		,OC.MontoUSD [Monto total USD]
 		,OC.MontoCLP [Monto total pesos]
 		,OC.MontoCLF [Monto total UF]
+=======
+        ,OL.NombreItem [Nombre producto (ONU)]
+        ,OL.DescripcionItem
+>>>>>>> 3198ac5e88cc38320dd05a4c38959c0d31a7eca5
         ,C.RUTUnidaddeCompra [RUT Unidad de Compra]
         ,UPPER(C.NombreUnidaddeCompra) [Nombre Unidad de Compra]
         ,UPPER(I.NombreInstitucion) [Nombre Institucion]
@@ -250,6 +271,7 @@ server <- function(input, output, session) {
     if(!is.null(institucion_seleccionada)) {
       consulta <- paste0(consulta, " AND I.NombreInstitucion = '", institucion_seleccionada, "'")
     }
+<<<<<<< HEAD
     
     # Agregar condición de sector si no es "Todos los sectores"
     if(!is.null(sector_seleccionado)) {
@@ -257,6 +279,8 @@ server <- function(input, output, session) {
     }
     
     
+=======
+>>>>>>> 3198ac5e88cc38320dd05a4c38959c0d31a7eca5
     withProgress(message = "Realizando consulta a la base de datos", {
     resultado <- sqlQuery(con3, consulta)
     datos_consultados(resultado)
