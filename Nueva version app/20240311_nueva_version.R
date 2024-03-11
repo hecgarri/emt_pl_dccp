@@ -17,24 +17,24 @@ con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")
 ui <- fluidPage(
   
   titlePanel("Consulta a base de datos"),
-
-tabsetPanel(
-  tabPanel("Transacciones",
-    sidebarLayout(
-    sidebarPanel(
-      dateRangeInput("fecha", "Rango de fechas:",
-                     start = Sys.Date() %m-% months(13),
-                     end = Sys.Date() %m-% months(13)),
-      uiOutput("region_select"),
-      uiOutput("procedencia_select"), # Nuevo selectInput para procedencia
-      uiOutput("institucion_select"), # Nuevo selectInput según institución
-      uiOutput("sector_select"), #Nuevo selectInput según sector 
-      actionButton("consultar_btn", "Consultar"),
-      downloadButton("downloadData", "Descargar Excel")
-    ),
-    mainPanel(
-      tags$head(
-        tags$style(HTML("
+  
+  tabsetPanel(
+    tabPanel("Transacciones",
+             sidebarLayout(
+               sidebarPanel(
+                 dateRangeInput("fecha", "Rango de fechas:",
+                                start = Sys.Date() %m-% months(13),
+                                end = Sys.Date() %m-% months(13)),
+                 uiOutput("region_select"),
+                 uiOutput("procedencia_select"), # Nuevo selectInput para procedencia
+                 uiOutput("institucion_select"), # Nuevo selectInput según institución
+                 uiOutput("sector_select"), #Nuevo selectInput según sector 
+                 actionButton("consultar_btn", "Consultar"),
+                 downloadButton("downloadData", "Descargar Excel")
+               ),
+               mainPanel(
+                 tags$head(
+                   tags$style(HTML("
           .title {
             font-size: 24px;
             font-weight: bold;
@@ -45,41 +45,41 @@ tabsetPanel(
             margin-bottom: 20px;
           }
         "))
-      ),
-      tags$div(
-        # tags$p(class = "title", "Vista resumida"),
-        # tags$p(class = "description", "Aquí podrás ver un resumen de la data en términos de cantidad de órdenes de compra y montos transados. 
-        #        Cualquier problema de funcionamiento, informarlo a hector.garrido@chilecompra.cl"),
-        # # Agrega aquí el contenido principal de tu aplicación, como la tabla o el gráfico
+                 ),
+        tags$div(
+          # tags$p(class = "title", "Vista resumida"),
+          # tags$p(class = "description", "Aquí podrás ver un resumen de la data en términos de cantidad de órdenes de compra y montos transados. 
+          #        Cualquier problema de funcionamiento, informarlo a hector.garrido@chilecompra.cl"),
+          # # Agrega aquí el contenido principal de tu aplicación, como la tabla o el gráfico
+          
+          #DTOutput("resultado")
+          plotlyOutput("combined_plot")
+        )
         
-        #DTOutput("resultado")
-        plotlyOutput("combined_plot")
-      )
-      
-      
+        
+               )
+        
+             )
     )
     
+    
+    # ,tabPanel("Usuarios",
+    #          
+    #          sidebarLayout(
+    #            sidebarPanel(
+    #              
+    #            )
+    #          )
+    #          )
+    
+    ,tabPanel("Documentación", 
+              mainPanel(
+                # Contenido de la pestaña de documentación
+                tags$div(
+                  # uiOutput("documentacion") # Incluye la documentación aquí
+                )
+              ))
   )
-)
-
-
-# ,tabPanel("Usuarios",
-#          
-#          sidebarLayout(
-#            sidebarPanel(
-#              
-#            )
-#          )
-#          )
-
-,tabPanel("Documentación", 
-         mainPanel(
-           # Contenido de la pestaña de documentación
-           tags$div(
-            # uiOutput("documentacion") # Incluye la documentación aquí
-           )
-         ))
-)
 )
 
 # Servidor
@@ -392,8 +392,12 @@ server <- function(input, output, session) {
   
   
   # Definir una variable reactiva para almacenar el gráfico de líneas
-  line_region_plot <- reactive({
+  line_region_plot <- eventReactive(input$consultar_btn, {
     req(input$consultar_btn)
+    req(datos_consultados())
+    
+    
+    #browser()
     
     # Verificar si los datos están disponibles y no están vacíos
     if (!is.null(datos_consultados()) && nrow(datos_consultados()) > 0) {
@@ -402,7 +406,7 @@ server <- function(input, output, session) {
         # Calcular el total de órdenes de compra para ese día
         total_oc <- datos_consultados() %>% 
           summarise(n_oc = n_distinct(CodigoOC))
-          
+        
         
         # Crear un gráfico simple con el total como una cifra grande
         plot <- plot_ly(x = ~1, y = ~total_oc$n_oc, type = "bar", 
@@ -446,8 +450,9 @@ server <- function(input, output, session) {
   
   
   # Definir una variable reactiva para almacenar el gráfico de barras
-  bar_rubro_plot <- reactive({
+  bar_rubro_plot <- eventReactive(input$consultar_btn, {
     req(input$consultar_btn)
+    req(datos_consultados())
     
     # Verificar si los datos están disponibles y no están vacíos
     if (!is.null(datos_consultados()) && nrow(datos_consultados()) > 0) {
@@ -494,11 +499,30 @@ server <- function(input, output, session) {
   
   
   # Definir una variable reactiva para almacenar el gráfico de líneas
-  line_monto_plot <- reactive({
+  line_monto_plot <- eventReactive(input$consultar_btn, {
     req(input$consultar_btn)
+    req(datos_consultados())
     
     # Verificar si los datos están disponibles y no están vacíos
     if (!is.null(datos_consultados()) && nrow(datos_consultados()) > 0) {
+      
+      if (input$fecha[1] == input$fecha[2]) {
+        # Calcular el total de órdenes de compra 
+        resumen <- datos_consultados() %>% 
+          distinct(CodigoOC, .keep_all = TRUE) %>%
+          #group_by(Fecha = as.Date(`Fecha Envío OC`)) %>%  
+          summarise(monto = sum(`Monto total pesos`)/1000000)  
+        # Crear un gráfico simple con el total como una cifra grande
+        plot <- plot_ly(x = ~1, y = ~resumen$monto, type = "bar", 
+                        text = paste("Monto total transado:", resumen$monto),
+                        marker = list(color = "blue")) %>%
+          layout(title = "Monto total transado",
+                 yaxis = list(title = "Monto total transado"),
+                 xaxis = list(title = "")) 
+        
+        
+      } else {
+      
       resumen <- datos_consultados() %>% 
         distinct(CodigoOC, .keep_all = TRUE) %>%
         group_by(Fecha = as.Date(`Fecha Envío OC`)) %>%  
@@ -521,6 +545,7 @@ server <- function(input, output, session) {
           legend.position = "top",
           plot.title = element_text(face = "bold", size = 20)
         )
+      }
       
       plot <- ggplotly(plot)
       
@@ -536,8 +561,9 @@ server <- function(input, output, session) {
   
   
   # Definir una variable reactiva para almacenar el gráfico de barras
-  bar_rubro_monto <- reactive({
+  bar_rubro_monto <- eventReactive(input$consultar_btn, {
     req(input$consultar_btn)
+    req(datos_consultados())
     
     # Verificar si los datos están disponibles y no están vacíos
     if (!is.null(datos_consultados()) && nrow(datos_consultados()) > 0) {
