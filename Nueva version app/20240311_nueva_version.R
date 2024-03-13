@@ -661,18 +661,10 @@ server <- function(input, output, session) {
   # Lógica para la descarga del archivo Excel
   output$downloadData <- downloadHandler(
     filename = function() {
-      paste("data-", Sys.Date(), ".xlsx", sep="")
+      paste(gsub("-","",Sys.Date())," Ordenes de compra", ".csv", sep="")
     },
     content = function(file) {
-      # Crear un libro de Excel
-      wb <- openxlsx::createWorkbook()
-      # Agregar una hoja de trabajo
-      sheet_name <- "Datos"
-      openxlsx::addWorksheet(wb, sheet_name)
-      # Escribir los datos en la hoja de trabajo
-      openxlsx::writeData(wb, sheet = sheet_name, x = datos_consultados())
-      # Guardar el libro de Excel
-      openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+      write.csv2(datos_consultados(), file = file, fileEncoding = "latin1")
     }
   )
   
