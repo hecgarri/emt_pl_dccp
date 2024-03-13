@@ -664,7 +664,7 @@ server <- function(input, output, session) {
       paste(gsub("-","",Sys.Date())," Ordenes de compra", ".csv", sep="")
     },
     content = function(file) {
-      write.csv2(datos_consultados(), file = file, fileEncoding = "latin1")
+      write.csv2(datos_consultados(), file = file, sep = "|", fileEncoding = "latin1")
     }
   )
   
