@@ -1,0 +1,51 @@
+DECLARE @MONTH AS INT;
+      DECLARE @YEAR AS INT;
+                  
+      SET @MONTH =  %s;
+      SET @YEAR =  %s;
+                  
+      DECLARE @CURRENTMONTH datetime = datetimefromparts(@YEAR, @MONTH, 1,0,0,0,0);
+      DECLARE @startDate datetime = dateadd(month, %s;, @currentMonth)
+      , @endDate datetime = dateadd(month, 1, @currentMonth);
+
+                SELECT DISTINCT
+                 CAST(
+					CASE 
+						WHEN LEN(LOWER(REPLACE(REPLACE(O.orgTaxID,'.',''),'-',''))) > 1 
+						THEN LEFT(LOWER(REPLACE(REPLACE(O.orgTaxID,'.',''),'-',''))
+						, LEN(LOWER(REPLACE(REPLACE(O.orgTaxID,'.',''),'-',''))) - 1)
+						ELSE 'Sin rut: ' + O.orgTaxID 
+					END as VARCHAR(50)) [Rut Proveedor]
+                ,O.orgEnterprise [EntCode]
+                ,UPPER(E.entname) [Razon social]
+                , U.usrLastLogin
+			    , MONTH(U.usrLastLogin) [Mes]
+                , YEAR(U.usrLastLogin) [Anio]
+				,U.usrEmail
+				,U.usrFirstName+' '+U.usrLastName [Nombre Usuario]
+				,U.usrTaxID
+				,U.usrMobile
+				,U.usrPhone
+				,U.usrPosition
+				, @MONTH [Mes Central]
+				, @YEAR [Anio Central]
+				, @startDate [Comienzo]
+				, @endDate [Final]
+                
+                FROM  [DCCPPlatform].[dbo].[gblSecUserRole] as UR 
+                INNER JOIN  [DCCPPlatform].[dbo].gblOrganization as O ON UR.uroOrganization      = O.orgCode
+                INNER JOIN  [DCCPPlatform].[dbo].GblUser as U ON UR.uroUser              = U.usrCode
+                LEFT JOIN   [DCCPPlatform].[dbo].gblEnterprise  as E  ON O.orgEnterprise         = E.entcode
+                WHERE  U.usrIsActive       = 1
+                AND O.orgIsActive   = 1
+                AND E.entIsActive   = 1
+                and o.orgistest = 0
+                AND (U.usrEmail NOT LIKE '%ontraloria.cl' OR (U.usrEmail LIKE '%ontraloria.cl' AND E.entCode = '7231'))  -- 7231 Codigo de la Contraloria
+                AND (U.usrEmail NOT LIKE '%ontroloria.cl' OR (U.usrEmail LIKE '%ontroloria.cl' AND E.entCode = '7231'))
+                AND E.entName NOT IN ('MERCADOPUBLICOTEST','MPCOMPRADORTEST_SKY','MPCOMPRADORTEST_SKY2','DCCP-OPERACIONES-PRUEBA COMPRADOR') -- Usuarios de Prueba
+                AND U.usrPosition != ''             -- No consideramos contactos sin usrPosition
+                AND U.usrEmail  != ''        -- No consideramos contactos sin mail
+                --AND YEAR(U.usrLastLogin) = @YEAR
+                AND U.usrLastLogin <= @endDate AND U.usrLastLogin >= @startDate
+                AND O.orgClass = 1
+                AND o.orgtaxid not in ('0-0','0.000.000-0','1-9','A.t21-125','yyyyyyyyyy')

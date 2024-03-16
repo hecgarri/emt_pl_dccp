@@ -1,0 +1,71 @@
+DECLARE @MONTH AS INT;
+    DECLARE @YEAR AS INT;
+                
+    SET @MONTH = %s;
+    SET @YEAR = %s;
+                
+    DECLARE @CURRENTMONTH datetime = datetimefromparts(@YEAR, @MONTH, 1,0,0,0,0);
+    DECLARE @startDate datetime = dateadd(month,%s, @currentMonth)
+    , @endDate datetime = dateadd(month, 1, @currentMonth);
+      
+      
+    SELECT DISTINCT 
+	  OL.[poiID]
+    ,OL.[porID]
+    ,OL.[CodigoOC]
+	  ,LC.NumeroAdq
+	  ,LC.Link
+    ,T.Year
+    ,T.Month
+	  ,OL.[NombreItem] 
+	  ,PR.NombreProducto 
+	  ,RU.RubroN1
+	  ,RU.RubroN2
+	  ,RU.RubroN3
+    ,OL.[DescripcionItem]
+    ,DU.uomName [Unidad de Medida]
+    ,OL.[CantidadItem]
+    ,OL.[MonedaOC]
+    ,OL.[Monto]
+    ,OL.[MontoUSD]
+    ,OL.[MontoCLP]
+    ,OL.[MontoCLF]
+    ,OL.[MontoUTM]
+	  ,P.RazonSocialSucursal [Nombre Proveedor]
+	  ,P.RUTSucursal [Rut Proveedor]
+	  ,P.ActividadSucursal[Actividad Proveedor]
+	  ,E.NombreEmpresa 
+	  ,DT.Tamano
+	  ,C.RazonSocialUnidaddeCompra [Unidad de Compra]
+	  ,C.RUTUnidaddeCompra [Rut Unidad de Compra]
+	  ,C.ActividadUnidaddeCompra [Actividad Unidad de Compra]
+	  ,I.NombreInstitucion [Nombre Institución]
+	  ,S.Sector [Sector Institución]
+	  ,(CASE OC.porIsIntegrated
+		WHEN 3 THEN 'Compra Ágil'
+		ELSE (
+			CASE  OC.IDProcedenciaOC
+			WHEN 703 THEN 'Convenio Marco'
+			WHEN 701 THEN 'Licitación Pública'
+			WHEN 1401 THEN 'Licitación Pública'
+			WHEN 702 THEN 'Licitación Privada'
+			ELSE 'Trato Directo'
+			END)
+		END) 'PROCEDENCIA'
+  FROM [DM_Transaccional].[dbo].[THOrdenesCompraLinea] as OL 
+  INNER JOIN [DM_Transaccional].[dbo].[THOrdenesCompra] as OC ON OL.CodigoOC=OC.CodigoOC 
+  INNER JOIN [DM_Transaccional].[dbo].[THOportunidadesNegocio] as LC ON OC.rbhCode = LC.rbhCode
+  INNER JOIN [DM_Transaccional].[dbo].[DimTiempo] as T ON OC.IDFechaEnvioOC = T.DateKey
+  INNER JOIN [DM_Transaccional].[dbo].[DimProducto] as PR ON OL.IDProducto=PR.IDProducto
+  INNER JOIN [DM_Transaccional].[dbo].[DimRubro] as RU ON PR.IdRubro = RU.IdRubro
+  INNER JOIN [DM_Transaccional].[dbo].[DimProveedor] as P ON OC.IDSucursal=P.IDSucursal 
+  INNER JOIN [DM_Transaccional].[dbo].[DimComprador] as C ON OC.IDUnidaddeCompra = C.IDUnidaddeCompra
+  INNER JOIN [DM_Transaccional].[dbo].[DimEmpresa] as E ON P.entCode = E.entCode 
+  INNER JOIN [DM_Transaccional].[dbo].[DimInstitucion] as I ON C.entCode = I.entCode
+  INNER JOIN [DM_Transaccional].[dbo].[DimSector] as S ON I.IdSector = S.IdSector
+  INNER JOIN [DM_Transaccional].[dbo].[THTamanoProveedor] as TP ON TP.entcode = E.entCode AND TP.[AñoTributario]=2022 
+  INNER JOIN [DM_Transaccional].[dbo].[DimTamanoProveedor] as DT ON TP.idTamano = DT.IdTamano
+  INNER JOIN [DM_Transaccional].[dbo].[DimUOM] as DU ON OL.UnidaddeMedida = DU.uomCode
+  WHERE (T.Date < @endDate) 
+  AND (T.Date >= @startDate) 
+  AND OC.IDEstadoOC >= 5

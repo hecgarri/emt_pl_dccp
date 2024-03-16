@@ -378,6 +378,8 @@ server <- function(input, output, session) {
     })
     datos_consultados(resultado)
     updateActionButton(session, "consultar_btn", label = "Consultar", icon = icon("search"))
+    
+    cat("Realizando consulta a la base de datos.")
   })
   
   # Muestra los resultados en una tabla html =============================
@@ -580,7 +582,7 @@ server <- function(input, output, session) {
       
       
       
-      print(resumen)
+      #print(resumen)
       
       # Crear el gráfico de barras
       plot <- ggplot(resumen, aes(x = reorder(rubro, -monto), y = monto, fill = reorder(rubro, monto))) +
@@ -611,7 +613,7 @@ server <- function(input, output, session) {
       plot <- ggplotly(plot)
       
       return(plot)
-      print(class(plot))
+      #print(class(plot))
     } else {
       # Retornar un objeto nulo si no hay datos disponibles
       return(NULL)
@@ -646,7 +648,7 @@ server <- function(input, output, session) {
       # Devolver el objeto de gráfico combinado
       combined_plots
       #
-      
+      print(combined_plots)
     } else {
       # Mostrar un mensaje de error si los datos están vacíos o no están disponibles
       print("No hay datos disponibles para crear el gráfico combinado.")
