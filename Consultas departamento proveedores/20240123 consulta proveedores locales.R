@@ -123,14 +123,14 @@ ranking_proveedores <- datos %>%
 #
 data_ag_productos <- datos %>% 
   #filter(year == 2023) %>% 
-  group_by(year,level1, `Región de Despacho`,`Proveedor Local 2`, `productoname`) %>%
+  group_by(year,level1, `Región de Despacho`,`Proveedor Local 2`, `CodigoProducto`,productoname) %>%
   #distinct(CodigoSolicitudCotizacion, .keep_all = TRUE) %>% 
   summarise(solicitudes = n_distinct(CodigoSolicitudCotizacion)
             ,ofertas = n_distinct(CodigoCotizacion)
             ,proveedores = n_distinct(entCode)
             ,MontoTotalProducto = sum(MontoTotalProducto*EsProveedorSeleccionado, na.rm = TRUE)) %>% 
   setDT() %>% 
-  data.table::dcast(year+level1+`Región de Despacho`+productoname~`Proveedor Local 2`
+  data.table::dcast(year+level1+`Región de Despacho`+CodigoProducto+productoname~`Proveedor Local 2`
                     , value.var = c("solicitudes", "ofertas", "proveedores", "MontoTotalProducto")) %>% 
   mutate(interseccion = ifelse(`solicitudes_Local`>`solicitudes_No Local`
                                & ofertas_Local >`ofertas_No Local`
@@ -138,6 +138,16 @@ data_ag_productos <- datos %>%
          ,union = ifelse(`solicitudes_Local`>`solicitudes_No Local`
                          | ofertas_Local >`ofertas_No Local`
                          | proveedores_Local>`proveedores_No Local`, "Sí", "No"))  
+
+
+data_ag %>% 
+  filter(level1 == 'Equipamiento y suministros médicos') %>% 
+  summarise(solicitudesgrandes = sum(MontoTotalProducto_Grande,na.rm = TRUE))
+
+data_ag_productos %>% 
+  filter(level1 == 'Equipamiento y suministros médicos') %>% 
+  summarise(solicitudesgrandes = sum(MontoTotalProducto_Grande,na.rm = TRUE))
+
 
 tabla_y <- data_ag %>% 
   group_by(year,level1, interseccion) %>% 
