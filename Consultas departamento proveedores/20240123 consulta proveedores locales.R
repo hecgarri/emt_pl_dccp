@@ -85,6 +85,23 @@ datos_usuarios <- consultar_y_guardar(wd_path = data_path
                              , updated = TRUE)
 
 
+
+data_regiones <- datos %>% 
+  group_by(year, `Región de Despacho`,`Proveedor Local 2`) %>%
+  summarise(solicitudes = n_distinct(CodigoSolicitudCotizacion)
+            ,ofertas = n_distinct(CodigoCotizacion)
+            ,proveedores = n_distinct(entCode)
+            ,MontoTotalProducto = sum(MontoTotalProducto*EsProveedorSeleccionado, na.rm = TRUE)) %>% 
+  setDT() %>% 
+  data.table::dcast(year+`Región de Despacho`~`Proveedor Local 2`
+                    , value.var = c("solicitudes", "ofertas", "proveedores", "MontoTotalProducto")) %>% 
+  mutate(interseccion = ifelse(`solicitudes_Local`>`solicitudes_No Local`
+                               & ofertas_Local >`ofertas_No Local`
+                               & proveedores_Local>`proveedores_No Local`,"Sí","No")
+         ,union = ifelse(`solicitudes_Local`>`solicitudes_No Local`
+                         | ofertas_Local >`ofertas_No Local`
+                         | proveedores_Local>`proveedores_No Local`, "Sí", "No"))  
+
 data_ag <- datos %>% 
   group_by(year,level1, `Región de Despacho`,`Proveedor Local 2`) %>%
   summarise(solicitudes = n_distinct(CodigoSolicitudCotizacion)
@@ -179,6 +196,10 @@ segun_rg <- datos %>%
                     , value.var = c("solicitudes", "ofertas", "proveedores", "MontoTotalProducto")) 
 
 wb <- createWorkbook()
+
+addWorksheet(wb, sheetName = 'Proveedor Local - Region')
+
+writeData(wb, sheet = 'Proveedor Local - Region', x = data_regiones)
 
 addWorksheet(wb, sheetName = 'Proveedor Local - Rubro')
 
