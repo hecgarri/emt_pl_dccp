@@ -1,0 +1,8 @@
+- Rut usuario comprador de ejemplo: 17.755.097-3
+- Rut Unidad de Compra de ejemplo: 62.000.450-2
+- Rut Proveedor de ejemplo: 76.381.645-1
+
+Ejemplo de campos problemáticos al ser exportados: 
+
+"ASCENCIO &AMP; PENNA CONSULTORES E INVERSIONES LIMITADA"
+
