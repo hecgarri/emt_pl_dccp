@@ -396,8 +396,8 @@ server <- function(input, output, session) {
   # Aquí va el selector de regiones para el panel de reclamos
   output$rcl_region_select <- renderUI({
     selectInput("rcl_region", "Selecciona una región:",
-                choices = c("Todas las regiones", rcl_regiones_disponibles$Region),
-                selected = rcl_regiones_disponibles$Region[15])
+                choices = c("Todas las regiones", regiones_disponibles$Region),
+                selected = regiones_disponibles$Region[15])
   })
   
   # Aquí va el selector de instituciones para el panel de reclamos 
@@ -543,7 +543,7 @@ server <- function(input, output, session) {
     if (input$detalle){
       query <- paste0(query,",OL.Monto [Monto producto] 
 		,OL.NombreItem [Nombre producto]
-		,OL.DescripcionItem
+		,REPLACE(REPLACE(OL.DescripcionItem, CHAR(13), ''), CHAR(10), '') AS DescripcionItem
 		,RU.RubroN1 [Rubro Proveedor]")
     }
     
@@ -1041,7 +1041,7 @@ server <- function(input, output, session) {
         T.Year
         ,L.Region
         ,T.Date [Fecha envío OC]
-        ,OC.NombreOC
+        ,REPLACE(REPLACE(OC.NombreOC, CHAR(13), ''), CHAR(10), '') AS NombreOC
         ,OC.CodigoOC
 		,OC.MonedaOC [Tipo de moneda]
 		,OC.MontoUSD+OC.ImpuestoUSD [Monto Bruto USD]
@@ -1260,12 +1260,12 @@ server <- function(input, output, session) {
     rcl_query <- paste0(
       "SELECT  [idReclamo]
       		,er.NombreEstado
-      		,mr.NombreMotivoReclamo
+      		,REPLACE(REPLACE(mr.NombreMotivoReclamo, CHAR(13), ''), CHAR(10), '') AS NombreMotivoReclamo
       		,tr.NombreTipoReclamo
       		,cast([FechaIngresoReclamo] as date) FechaIngresoReclamo
       		,[NombreReclamante] 
       		,[RutReclamante]
-      		,[DetalleReclamo]
+      		,REPLACE(REPLACE([DetalleReclamo], CHAR(13), ''), CHAR(10), '') AS DetalleReclamo
       		,[NombreOOPP]
       		,C.[entCode] [entCode OOPP]
       		,C.[RazonSocialUnidaddeCompra]
@@ -1276,7 +1276,7 @@ server <- function(input, output, session) {
       		,cast([FechaAsignacionReclamoOOPP] as date) FechaAsignacionReclamoOOPP
       		,[NumLicOC]
       		,[idReclamoCRM]
-      		,[RespuestaOOPP]
+      		,REPLACE(REPLACE([RespuestaOOPP], CHAR(13), ''), CHAR(10), '') AS RespuestaOOPP
       		,r.[orgCode]
       		,r.[orgName]
       		,[entCodeReclamante]
@@ -1297,18 +1297,18 @@ server <- function(input, output, session) {
     
     # Agregar condición de región si no es "Todas las regiones"
     if(!is.null(region_seleccionada)) {
-      rcl_query <- paste0(rcl_query, " AND ci.citName = '", region_seleccionada, "'")
+      rcl_query <- paste0(rcl_query, " AND L.Region = '", region_seleccionada, "'")
     }
     
     # Agregar condición de RUT si el campo no es nulo
     if(!is.null(rut_seleccionado)) {
-      rcl_query <- paste0(rcl_query, " AND o2.orgTaxID = '", rut_seleccionado, "'")
+      rcl_query <- paste0(rcl_query, " AND C.[RUTUnidaddeCompra] = '", rut_seleccionado, "'")
     }
     
     
     # Agregar condición de institución si no es "Todas las instituciones"
     if(!is.null(institucion_seleccionada)) {
-      rcl_query <- paste0(rcl_query, " AND NombreOOPP = '", institucion_seleccionada, "'")
+      rcl_query <- paste0(rcl_query, " AND I.NombreInstitucion = '", institucion_seleccionada, "'")
     }
     #rowser()
     
@@ -1316,7 +1316,7 @@ server <- function(input, output, session) {
     
     # Agregar condición de sector si no es "Todos los sectores"
     if(!is.null(sector_seleccionado)) {
-      rcl_query <- paste0(rcl_query, " AND o2.orgActivity = '", sector_seleccionado, "'")
+      rcl_query <- paste0(rcl_query, " AND S.Sector = '", sector_seleccionado, "'")
     }
     
     cat("La Query es la siguiente:"
@@ -1684,13 +1684,35 @@ server <- function(input, output, session) {
     
     datatable(prv_aggregated)
   })
+  
+  # Renderiza resultados de RECLAMOS ======================================== 
+  
+  output$rcl_resultado <- renderDT({
+    # Renderiza los datos en la tabla DT
+    req(reclamos_consultados())  # Requiere que los datos estén disponibles
+    
+    
+    if (!is.null(reclamos_consultados) && nrow(reclamos_consultados()) > 0) {
+      
+      rcl_aggregated <- reclamos_consultados() %>%
+        group_by(`RUTUnidaddeCompra`, NombreMotivoReclamo) %>% 
+        summarise(`NombreInstitucion` = `NombreInstitucion`[1]
+                  ,`Primer Reclamo del período` = as.Date(`FechaIngresoReclamo`, format = "%d-%m-%Y")[1]
+                  ,`Última Reclamo del período` = max(as.Date(`FechaIngresoReclamo`, format = "%d-%m-%Y"))
+                  ,`Total de reclamos` = n_distinct(idReclamo)) %>% 
+        arrange(desc(`Total de reclamos`))
+      
+    }
+    
+    datatable(rcl_aggregated)
+  })
   # Descarga de datos TRANSACCIONES ===================================
   output$downloadData_transacciones <- downloadHandler(
     filename = function() {
-      paste(gsub("-","",Sys.Date())," Ordenes de compra", ".csv", sep="")
+      paste(gsub("-","",Sys.Date())," detalle Ordenes de compra", ".csv", sep="")
     },
     content = function(file) {
-      write.table(datos_consultados(), file = file, sep = "|", fileEncoding = "latin1", dec = ",", na = "", row.names = FALSE)
+      write.table(datos_consultados(), file = file, sep = "|", quote = TRUE,fileEncoding = "latin1", dec = ",", na = "", row.names = FALSE)
     }
   )
   
@@ -1700,7 +1722,7 @@ server <- function(input, output, session) {
       paste(gsub("-","",Sys.Date())," detalle usuarios compradores", ".csv", sep="")
     },
     content = function(file) {
-      write.table(compradores_consultados(), file = file, sep = "|", fileEncoding = "latin1", dec = ",", na = "", row.names = FALSE)
+      write.table(compradores_consultados(), file = file, sep = "|", quote = TRUE,fileEncoding = "latin1", dec = ",", na = "", row.names = FALSE)
     }
   )
   
@@ -1710,7 +1732,7 @@ server <- function(input, output, session) {
       paste(gsub("-","",Sys.Date())," detalle proveedores", ".csv", sep="")
     },
     content = function(file) {
-      write.table(proveedores_consultados(), file = file, sep = "|", fileEncoding = "latin1", dec = ",", na = "", row.names = FALSE)
+      write.table(proveedores_consultados(), file = file, sep = "|", quote = TRUE,fileEncoding = "latin1", dec = ",", na = "", row.names = FALSE)
     }
   )
   
@@ -1720,7 +1742,7 @@ server <- function(input, output, session) {
       paste(gsub("-","",Sys.Date())," detalle reclamos", ".csv", sep="")
     },
     content = function(file) {
-      write.table(reclamos_consultados(), file = file, sep = "|", fileEncoding = "latin1", dec = ",", na = "", row.names = FALSE)
+      write.table(reclamos_consultados(), file = file, sep = "|",  quote = TRUE,fileEncoding = "latin1", dec = ",", na = "", row.names = FALSE, eol = "\n")
     }
   )
   
