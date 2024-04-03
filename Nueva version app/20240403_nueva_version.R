@@ -77,24 +77,24 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
       
       ,# Botonera de USUARIOS ====================================================
       tabPanel("Usuarios OO.PP.",
-                
-                sidebarLayout(
-                  sidebarPanel(
-                    dateRangeInput("usr_fecha", "Rango de fechas:",
-                                   start = Sys.Date() %m-% months(14),
-                                   end = Sys.Date() %m-% months(13)),
-                    textInput("rut_usr", "Ingrese RUT del usuario comprador:", placeholder = "Ej: 12.345.678-9"),
-                    actionButton("usr_validate_button", "Validar"),
-                    uiOutput("usr_region_select"),
-                    uiOutput("usr_procedencia_select"), # Nuevo selectInput para procedencia
-                    uiOutput("usr_institucion_select"), # Nuevo selectInput según institución
-                    uiOutput("usr_sector_select"), #Nuevo selectInput según sector 
-                    actionButton("usr_consultar_btn", "Consultar"),
-                    downloadButton("usr_downloadData", "Descargar Excel")
-                  ),
-                  mainPanel(
-                    tags$head(
-                      tags$style(HTML("
+               
+               sidebarLayout(
+                 sidebarPanel(
+                   dateRangeInput("usr_fecha", "Rango de fechas:",
+                                  start = Sys.Date() %m-% months(14),
+                                  end = Sys.Date() %m-% months(13)),
+                   textInput("rut_usr", "Ingrese RUT del usuario comprador:", placeholder = "Ej: 12.345.678-9"),
+                   actionButton("usr_validate_button", "Validar"),
+                   uiOutput("usr_region_select"),
+                   uiOutput("usr_procedencia_select"), # Nuevo selectInput para procedencia
+                   uiOutput("usr_institucion_select"), # Nuevo selectInput según institución
+                   uiOutput("usr_sector_select"), #Nuevo selectInput según sector 
+                   actionButton("usr_consultar_btn", "Consultar"),
+                   downloadButton("usr_downloadData", "Descargar Excel")
+                 ),
+                 mainPanel(
+                   tags$head(
+                     tags$style(HTML("
           .title {
             font-size: 24px;
             font-weight: bold;
@@ -105,7 +105,7 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
             margin-bottom: 20px;
           }
         "))
-                    ),
+                   ),
         tags$div(
           # tags$p(class = "title", "Vista resumida"),
           # tags$p(class = "description", "Aquí podrás ver un resumen de la data en términos de cantidad de órdenes de compra y montos transados. 
@@ -115,29 +115,29 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
           ,DTOutput("usr_resultado")
           #plotlyOutput("usr_combined_plot")
         )
-                  )
-                )
+                 )
+               )
       )
       , # Botonera de PROVEEDORES =================================================
       tabPanel("Proveedores",
-                
-                sidebarLayout(
-                  sidebarPanel(
-                    dateRangeInput("prv_fecha", "Rango de fechas:",
-                                   start = Sys.Date() %m-% months(14),
-                                   end = Sys.Date() %m-% months(13)),
-                    textInput("rut_prv", "Ingrese RUT del proveedor:", placeholder = "Ej: 12.345.678-9"),
-                    actionButton("prv_validate_button", "Validar"),
-                    uiOutput("prv_region_select"),
-                    uiOutput("prv_procedencia_select"), # Nuevo selectInput para procedencia
-                    uiOutput("prv_institucion_select"), # Nuevo selectInput según institución
-                    uiOutput("prv_sector_select"), #Nuevo selectInput según sector 
-                    actionButton("prv_consultar_btn", "Consultar"),
-                    downloadButton("prv_downloadData", "Descargar Excel")
-                  ),
-                  mainPanel(
-                    tags$head(
-                      tags$style(HTML("
+               
+               sidebarLayout(
+                 sidebarPanel(
+                   dateRangeInput("prv_fecha", "Rango de fechas:",
+                                  start = Sys.Date() %m-% months(14),
+                                  end = Sys.Date() %m-% months(13)),
+                   textInput("rut_prv", "Ingrese RUT del proveedor:", placeholder = "Ej: 12.345.678-9"),
+                   actionButton("prv_validate_button", "Validar"),
+                   uiOutput("prv_region_select"),
+                   uiOutput("prv_procedencia_select"), # Nuevo selectInput para procedencia
+                   uiOutput("prv_institucion_select"), # Nuevo selectInput según institución
+                   uiOutput("prv_sector_select"), #Nuevo selectInput según sector 
+                   actionButton("prv_consultar_btn", "Consultar"),
+                   downloadButton("prv_downloadData", "Descargar Excel")
+                 ),
+                 mainPanel(
+                   tags$head(
+                     tags$style(HTML("
           .title {
             font-size: 24px;
             font-weight: bold;
@@ -148,7 +148,7 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
             margin-bottom: 20px;
           }
         "))
-                    ),
+                   ),
         tags$div(
           # tags$p(class = "title", "Vista resumida"),
           # tags$p(class = "description", "Aquí podrás ver un resumen de la data en términos de cantidad de órdenes de compra y montos transados. 
@@ -158,8 +158,8 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
           ,DTOutput("prv_resultado")
           #plotlyOutput("usr_combined_plot")
         )
-                  )
-                )
+                 )
+               )
       )
       , # Botonera de RECLAMOS =================================================
       tabPanel("Reclamos a OO.PP.",
@@ -213,12 +213,12 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
 # Aquí va el Servidor
 server <- function(input, output, session) {
   
-# CONSULTAS PARA LISTAS DESPLEGABLES DATAWAREHOUSE================================================
+  # CONSULTAS PARA LISTAS DESPLEGABLES DATAWAREHOUSE================================================
   
-    regiones_disponibles <- NULL
-    procedencias_disponibles <- NULL # Variable para procedencias
-    institucion_disponibles <- NULL # Variable para procedencias
-    sectores_disponibles <- NULL # variable para sectores  
+  regiones_disponibles <- NULL
+  procedencias_disponibles <- NULL # Variable para procedencias
+  institucion_disponibles <- NULL # Variable para procedencias
+  sectores_disponibles <- NULL # variable para sectores  
   
   # Cargar las regiones disponibles al iniciar la aplicación (Datawarehouse) ==============
   observe({
@@ -329,90 +329,90 @@ server <- function(input, output, session) {
   #Selectores para el panel de USUARIOS ====================================== 
   
   
-    # Aquí va el selector de regiones para el panel de usuarios
-    output$usr_region_select <- renderUI({
-      selectInput("usr_region", "Selecciona una región:",
-                  choices = c("Todas las regiones", regiones_disponibles$Region),
-                  selected = regiones_disponibles$Region[15])
-    })
-    
-    # Aquí va el selector de procedencia para el panel de usuarios 
-    output$usr_procedencia_select <- renderUI({
-      selectInput("usr_procedencia", "Selecciona una procedencia:",
-                  choices = c("Todas las procedencias", procedencias_disponibles$Procedencia),
-                  selected = procedencias_disponibles$Procedencia[5])
-    })
-    
-    # Aquí va el selector de instituciones para el panel de usuarios 
-    output$usr_institucion_select <- renderUI({
-      selectInput("usr_institucion", "Selecciona una Institución:",
-                  choices = c("Todas las instituciones", institucion_disponibles$NombreInstitucion),
-                  selected = "Todas las instituciones")
-    })
-    
-    # Aquí va el selector de sectores para el panel de usuarios 
-    output$usr_sector_select <- renderUI({
-      selectInput("usr_sector", "Selecciona un sector:",
-                  choices = c("Todos los sectores", sectores_disponibles$Sector),
-                  selected = "Todos los sectores")
-    })  
-    
-
+  # Aquí va el selector de regiones para el panel de usuarios
+  output$usr_region_select <- renderUI({
+    selectInput("usr_region", "Selecciona una región:",
+                choices = c("Todas las regiones", regiones_disponibles$Region),
+                selected = regiones_disponibles$Region[15])
+  })
+  
+  # Aquí va el selector de procedencia para el panel de usuarios 
+  output$usr_procedencia_select <- renderUI({
+    selectInput("usr_procedencia", "Selecciona una procedencia:",
+                choices = c("Todas las procedencias", procedencias_disponibles$Procedencia),
+                selected = procedencias_disponibles$Procedencia[5])
+  })
+  
+  # Aquí va el selector de instituciones para el panel de usuarios 
+  output$usr_institucion_select <- renderUI({
+    selectInput("usr_institucion", "Selecciona una Institución:",
+                choices = c("Todas las instituciones", institucion_disponibles$NombreInstitucion),
+                selected = "Todas las instituciones")
+  })
+  
+  # Aquí va el selector de sectores para el panel de usuarios 
+  output$usr_sector_select <- renderUI({
+    selectInput("usr_sector", "Selecciona un sector:",
+                choices = c("Todos los sectores", sectores_disponibles$Sector),
+                selected = "Todos los sectores")
+  })  
+  
+  
   
   #Selectores para el panel de PROVEEDORES ====================================== 
   
   
-    # Aquí va el selector de regiones para el panel de usuarios
-    output$prv_region_select <- renderUI({
-      selectInput("prv_region", "Selecciona una región:",
-                  choices = c("Todas las regiones", regiones_disponibles$Region),
-                  selected = regiones_disponibles$Region[15])
-    })
-    
-    # Aquí va el selector de procedencia para el panel de proveedores 
-    output$prv_procedencia_select <- renderUI({
-      selectInput("prv_procedencia", "Selecciona una procedencia:",
-                  choices = c("Todas las procedencias", procedencias_disponibles$Procedencia),
-                  selected = procedencias_disponibles$Procedencia[5])
-    })
-    
-    # Aquí va el selector de instituciones para el panel de proveedores 
-    output$prv_institucion_select <- renderUI({
-      selectInput("prv_institucion", "Selecciona una Institución:",
-                  choices = c("Todas las instituciones", institucion_disponibles$NombreInstitucion),
-                  selected = "Todas las instituciones")
-    })
-    
-    # Aquí va el selector de sectores para el panel de proveedores 
-    output$prv_sector_select <- renderUI({
-      selectInput("prv_sector", "Selecciona un sector:",
-                  choices = c("Todos los sectores", sectores_disponibles$Sector),
-                  selected = "Todos los sectores")
-    })
-    
-    #Selectores para el panel de RECLAMOS ====================================== 
-    
-    
-    # Aquí va el selector de regiones para el panel de reclamos
-    output$rcl_region_select <- renderUI({
-      selectInput("rcl_region", "Selecciona una región:",
-                  choices = c("Todas las regiones", rcl_regiones_disponibles$Region),
-                  selected = rcl_regiones_disponibles$Region[15])
-    })
-    
-    # Aquí va el selector de instituciones para el panel de reclamos 
-    output$rcl_institucion_select <- renderUI({
-      selectInput("rcl_institucion", "Selecciona una Institución:",
-                  choices = c("Todas las instituciones", institucion_disponibles$NombreInstitucion),
-                  selected = "Todas las instituciones")
-    })
-    
-    # Aquí va el selector de sectores para el panel de reclamos 
-    output$rcl_sector_select <- renderUI({
-      selectInput("rcl_sector", "Selecciona un sector:",
-                  choices = c("Todos los sectores", sectores_disponibles$Sector),
-                  selected = "Todos los sectores")
-    })
+  # Aquí va el selector de regiones para el panel de usuarios
+  output$prv_region_select <- renderUI({
+    selectInput("prv_region", "Selecciona una región:",
+                choices = c("Todas las regiones", regiones_disponibles$Region),
+                selected = regiones_disponibles$Region[15])
+  })
+  
+  # Aquí va el selector de procedencia para el panel de proveedores 
+  output$prv_procedencia_select <- renderUI({
+    selectInput("prv_procedencia", "Selecciona una procedencia:",
+                choices = c("Todas las procedencias", procedencias_disponibles$Procedencia),
+                selected = procedencias_disponibles$Procedencia[5])
+  })
+  
+  # Aquí va el selector de instituciones para el panel de proveedores 
+  output$prv_institucion_select <- renderUI({
+    selectInput("prv_institucion", "Selecciona una Institución:",
+                choices = c("Todas las instituciones", institucion_disponibles$NombreInstitucion),
+                selected = "Todas las instituciones")
+  })
+  
+  # Aquí va el selector de sectores para el panel de proveedores 
+  output$prv_sector_select <- renderUI({
+    selectInput("prv_sector", "Selecciona un sector:",
+                choices = c("Todos los sectores", sectores_disponibles$Sector),
+                selected = "Todos los sectores")
+  })
+  
+  #Selectores para el panel de RECLAMOS ====================================== 
+  
+  
+  # Aquí va el selector de regiones para el panel de reclamos
+  output$rcl_region_select <- renderUI({
+    selectInput("rcl_region", "Selecciona una región:",
+                choices = c("Todas las regiones", rcl_regiones_disponibles$Region),
+                selected = rcl_regiones_disponibles$Region[15])
+  })
+  
+  # Aquí va el selector de instituciones para el panel de reclamos 
+  output$rcl_institucion_select <- renderUI({
+    selectInput("rcl_institucion", "Selecciona una Institución:",
+                choices = c("Todas las instituciones", institucion_disponibles$NombreInstitucion),
+                selected = "Todas las instituciones")
+  })
+  
+  # Aquí va el selector de sectores para el panel de reclamos 
+  output$rcl_sector_select <- renderUI({
+    selectInput("rcl_sector", "Selecciona un sector:",
+                choices = c("Todos los sectores", sectores_disponibles$Sector),
+                selected = "Todos los sectores")
+  })
   
   
   
@@ -720,8 +720,8 @@ server <- function(input, output, session) {
       invalidateLater(5000, session)
     }
   })
-
-
+  
+  
   
   #Botón para consultar USUARIOS ====================================================================
   observeEvent(input$usr_consultar_btn, {
@@ -1208,7 +1208,7 @@ server <- function(input, output, session) {
   #Botón para consultar RECLAMOS ============================================================
   observeEvent(input$rcl_consultar_btn, {
     
-   
+    
     # Obtener la región seleccionada  para el panel de reclamos 
     if(input$rcl_region == "Todas las regiones") {
       # Si se selecciona "Todas las regiones", no se aplica filtro por región en la consulta SQL
@@ -1255,7 +1255,7 @@ server <- function(input, output, session) {
         ,sector_seleccionado
         ,"\n ===========================================================\n")
     
-      # Query RECLAMOS ======================================================
+    # Query RECLAMOS ======================================================
     
     rcl_query <- paste0(
       "SELECT  [idReclamo]
@@ -1394,7 +1394,7 @@ server <- function(input, output, session) {
   })
   
   
- 
+  
   # Crea gráficos de TRANSACCIONES ====================================================================
   
   # Crear una función reactiva para renderizar la cuadrícula de gráficos solo cuando se presione el botón
