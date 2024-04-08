@@ -565,7 +565,7 @@ server <- function(input, output, session) {
     
     if (input$prv_detalle){
       query <- paste0(query,"
-        ,REPLACE(REPLACE(REPLACE(UPPER(UPPER(P.RazonSocialSucursal), CHAR(13), ''), CHAR(10), ''),';',',') AS [Razón social Proveedor]
+        ,REPLACE(REPLACE(REPLACE(UPPER(P.RazonSocialSucursal), CHAR(13), ''), CHAR(10), ''),';',',') AS [Razón social Proveedor]
         ,P.RUTSucursal [Rut Proveedor]
         ,L2.Region [Región Proveedor]
         ,DTP.Tamano [Tamaño Proveedor]")
