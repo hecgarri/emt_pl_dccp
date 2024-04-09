@@ -24,26 +24,26 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
     
     tabsetPanel(
       # Botonera de TRANSACCIONES ====================================================
-      tabPanel("Transacciones",
+      tabPanel("Órdenes de compra",
                sidebarLayout(
                  sidebarPanel(
                    dateRangeInput("fecha", "Rango de fechas:",
                                   start = Sys.Date() %m-% months(14),
                                   end = Sys.Date() %m-% months(13)),
-                   textInput("rut_inst", "Ingrese RUT de la unidad de compra:", placeholder = "Ej: 12.345.678-9"),
-                   actionButton("inst_validate_button", "Validar"),
-                   h5(HTML("<b>¿Desea ver el detalle por producto?</b>")),
-                   radioButtons("detalle", label = NULL,
-                                choices = list("Sí" = TRUE, "No" = FALSE),
-                                selected = TRUE),
-                   h5(HTML("<b>¿Desea ver el detalle del proveedor?</b>")),
-                   radioButtons("prv_detalle", label = NULL,
-                                choices = list("Sí" = TRUE, "No" = FALSE),
-                                selected = TRUE),
+                   textInput("rut_inst", "Ingrese RUT de la unidad de compra (opcional):", placeholder = "Ej: 12.345.678-9"),
+                   textInput("entcode_inst", "Ingrese entCode de la unidad de compra (opcional):", placeholder = "Ej: 12345"),
                    uiOutput("region_select"),
                    uiOutput("procedencia_select"), # Nuevo selectInput para procedencia
                    uiOutput("institucion_select"), # Nuevo selectInput según institución
-                   uiOutput("sector_select"), #Nuevo selectInput según sector 
+                   uiOutput("sector_select"), #Nuevo selectInput según sector
+                   selectInput("detalle", label = "¿Desea ver el detalle por productos?",
+                               choices = c("Sí" = TRUE, "No" = FALSE),
+                               selected = FALSE),
+                   selectInput("prv_detalle", label = "¿Desea ver el detalle de proveedores?",
+                               choices = list("Sí" = TRUE, "No" = FALSE),
+                               selected = FALSE),
+                   uiOutput("prv_detalle_rut"),
+                   uiOutput("prv_detalle_entcode"),
                    actionButton("consultar_btn", "Consultar"),
                    downloadButton("downloadData_transacciones", "Descargar Excel")
                  ),
@@ -68,8 +68,9 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
           # # Agrega aquí el contenido principal de tu aplicación, como la tabla o el gráfico
           
           #DTOutput("resultado")
-          verbatimTextOutput("inst_validation_result")
-          ,plotlyOutput("combined_plot")
+  
+          #,
+          plotlyOutput("combined_plot")
         )
         
         
@@ -117,49 +118,6 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
           # # Agrega aquí el contenido principal de tu aplicación, como la tabla o el gráfico
           verbatimTextOutput("usr_validation_result")
           ,DTOutput("usr_resultado")
-          #plotlyOutput("usr_combined_plot")
-        )
-                 )
-               )
-      )
-      , # Botonera de PROVEEDORES =================================================
-      tabPanel("Proveedores",
-               
-               sidebarLayout(
-                 sidebarPanel(
-                   dateRangeInput("prv_fecha", "Rango de fechas:",
-                                  start = Sys.Date() %m-% months(14),
-                                  end = Sys.Date() %m-% months(13)),
-                   textInput("rut_prv", "Ingrese RUT del proveedor:", placeholder = "Ej: 12.345.678-9"),
-                   actionButton("prv_validate_button", "Validar"),
-                   uiOutput("prv_region_select"),
-                   uiOutput("prv_procedencia_select"), # Nuevo selectInput para procedencia
-                   uiOutput("prv_institucion_select"), # Nuevo selectInput según institución
-                   uiOutput("prv_sector_select"), #Nuevo selectInput según sector 
-                   actionButton("prv_consultar_btn", "Consultar"),
-                   downloadButton("prv_downloadData", "Descargar Excel")
-                 ),
-                 mainPanel(
-                   tags$head(
-                     tags$style(HTML("
-          .title {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 10px;
-          }
-          .description {
-            font-size: 16px;
-            margin-bottom: 20px;
-          }
-        "))
-                   ),
-        tags$div(
-          # tags$p(class = "title", "Vista resumida"),
-          # tags$p(class = "description", "Aquí podrás ver un resumen de la data en términos de cantidad de órdenes de compra y montos transados. 
-          #        Cualquier problema de funcionamiento, informarlo a hector.garrido@chilecompra.cl"),
-          # # Agrega aquí el contenido principal de tu aplicación, como la tabla o el gráfico
-          verbatimTextOutput("prv_validation_result")
-          ,DTOutput("prv_resultado")
           #plotlyOutput("usr_combined_plot")
         )
                  )
@@ -298,7 +256,7 @@ server <- function(input, output, session) {
   })
   
   #Selectores para el panel de TRANSACCIONES ==========================================
-  {
+  
     # Aquí va el selector de regiones para el panel de transacciones
     output$region_select <- renderUI({
       selectInput("region", "Selecciona una región:",
@@ -328,7 +286,49 @@ server <- function(input, output, session) {
                   choices = c("Todos los sectores", sectores_disponibles$Sector),
                   selected = "Todos los sectores")
     })  
-  }
+    
+    # Mensaje de advertencia cuando se selecciona detalle productos ===============================
+    
+    observeEvent(input$detalle, {
+      opcion_seleccionada <- input$detalle
+      if (opcion_seleccionada) {
+        showModal(
+          modalDialog(
+          title = "¡Advertencia!",
+          "Cuando selecciona el detalle de productos los montos son netos (sin impuesto)",
+          easyClose = TRUE,
+          footer = NULL
+        )
+        )
+      }
+    })
+  
+    # PANEL DESPLEGABLE proveedores ==============================
+    
+    observeEvent(input$prv_detalle, {
+      # Actualiza el estado del panel condicional
+      output$prv_detalle_rut <- renderUI({
+        if (input$prv_detalle) {
+          textInput("rut_prv", "Ingrese RUT del proveedor (opcional):", placeholder = "Ej: 12.345.678-9")
+        } else {
+          NULL
+        }
+      })
+    }
+    )
+    
+    observeEvent(input$prv_detalle, {
+      # Actualiza el estado del panel condicional
+      output$prv_detalle_entcode <- renderUI({
+        if (input$prv_detalle) {
+          textInput("entcode_prv", "Ingrese entCode del proveedor (opcional):", placeholder = "Ej: 12345")
+        } else {
+          NULL
+        }
+      })
+    }
+    )
+    
   
   #Selectores para el panel de USUARIOS ====================================== 
   
@@ -442,27 +442,55 @@ server <- function(input, output, session) {
   
   reclamos_consultados <- reactiveVal(NULL)
   
-  # VALIDADOR RUT OO.PP. =======================================
+  # # VALIDADOR RUT OO.PP. =======================================
+  # 
+  # observeEvent(input$inst_validate_button, {
+  #   rut <- input$rut_inst
+  #   # Expresión regular para validar RUT en formato 00.000.000-0 o 00.000.000-9
+  #   rut_regex <- "^\\d{1,2}\\.\\d{1,3}\\.\\d{1,3}-[0-9kK]{1}$"
+  #   
+  #   if (nchar(trimws(rut)) > 0) {
+  #     if (grepl(rut_regex, rut)) {
+  #       output$inst_validation_result <- renderPrint({
+  #         paste("El RUT", rut, "es válido.")
+  #       })
+  #     } else {
+  #       output$inst_validation_result <- renderPrint({
+  #         paste("El RUT", rut, "no tiene el formato correcto.")
+  #       })
+  #     }
+  #   } else {
+  #     # Si no se ingresa ningún valor, establece input$rut_input como NULL
+  #     input$rut_inst <- NULL
+  #     output$inst_validation_result <- renderPrint({
+  #       NULL
+  #     })
+  #     # Invalidar la salida después de 5 segundos
+  #     invalidateLater(5000, session)
+  #   }
+  # })
   
-  observeEvent(input$inst_validate_button, {
-    rut <- input$rut_inst
+  # VALIDADOR RUT PROVEEDOR =======================================
+  
+  observeEvent(input$prv_validate_button, {
+    rut <- input$rut_prv
     # Expresión regular para validar RUT en formato 00.000.000-0 o 00.000.000-9
     rut_regex <- "^\\d{1,2}\\.\\d{1,3}\\.\\d{1,3}-[0-9kK]{1}$"
     
     if (nchar(trimws(rut)) > 0) {
       if (grepl(rut_regex, rut)) {
-        output$inst_validation_result <- renderPrint({
+        output$prv_validation_result <- renderPrint({
           paste("El RUT", rut, "es válido.")
         })
       } else {
-        output$inst_validation_result <- renderPrint({
+        output$prv_validation_result <- renderPrint({
           paste("El RUT", rut, "no tiene el formato correcto.")
         })
       }
     } else {
       # Si no se ingresa ningún valor, establece input$rut_input como NULL
-      input$rut_inst <- NULL
-      output$inst_validation_result <- renderPrint({
+      input$rut_prv <- NULL
+      output$prv_validation_result <- renderPrint({
         NULL
       })
       # Invalidar la salida después de 5 segundos
@@ -529,6 +557,30 @@ server <- function(input, output, session) {
       rut_seleccionado <- input$rut_inst
     }
     
+    # Obtener el rut seleccionado para el panel de transacciones
+    if(input$entcode_inst == "") {
+      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+      entcode_seleccionado <- NULL
+    } else {
+      entcode_seleccionado <- input$entcode_inst
+    }
+    
+    # Obtener el rut seleccionado para proveedores
+    if(input$rut_prv == "") {
+      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+      rut_proveedor <- NULL
+    } else {
+      rut_proveedor <- input$rut_prv
+    }
+    
+    # Obtener el rut seleccionado para el panel de transacciones
+    if(input$entcode_prv == "") {
+      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+      entcode_proveedor <- NULL
+    } else {
+      entcode_proveedor <- input$entcode_prv
+    }
+    
     cat("El sector seleccionado para el panel de transacciones es:\n"
         ,sector_seleccionado
         ,"\n ===========================================================\n")
@@ -559,13 +611,14 @@ server <- function(input, output, session) {
 		    ,OC.MontoCLF [Monto total UF]
         ,C.RUTUnidaddeCompra [RUT Unidad de Compra]
         ,UPPER(C.NombreUnidaddeCompra) [Nombre Unidad de Compra]
-		    ,I.entCode [entCode]
+		    ,I.entCode [entCode (Comprador)]
         ,REPLACE(REPLACE(REPLACE(UPPER(I.NombreInstitucion), CHAR(13), ''), CHAR(10), ''),';',',') AS [Nombre Institucion]
         ,S.Sector")
     
     if (input$prv_detalle){
       query <- paste0(query,"
         ,REPLACE(REPLACE(REPLACE(UPPER(P.RazonSocialSucursal), CHAR(13), ''), CHAR(10), ''),';',',') AS [Razón social Proveedor]
+        ,E.entCode [entCode (Proveedor)]
         ,P.RUTSucursal [Rut Proveedor]
         ,L2.Region [Región Proveedor]
         ,DTP.Tamano [Tamaño Proveedor]")
@@ -620,6 +673,11 @@ server <- function(input, output, session) {
       query <- paste0(query, " AND C.RUTUnidaddeCompra = '", rut_seleccionado, "'")
     }
     
+    # Agregar condición de entCode si el campo no es nulo
+    if(!is.null(entcode_seleccionado)) {
+      query <- paste0(query, " AND I.entCode = '", entcode_seleccionado, "'")
+    }
+    
     # Agregar condición de procedencia si no es "Todas las procedencias"
     if(!is.null(procedencia_seleccionada)) {
       query <- paste0(query, " AND (CASE OC.porisintegrated WHEN 3 THEN 'Compra Agil'
@@ -641,6 +699,17 @@ server <- function(input, output, session) {
     # Agregar condición de sector si no es "Todos los sectores"
     if(!is.null(sector_seleccionado)) {
       query <- paste0(query, " AND S.Sector = '", sector_seleccionado, "'")
+    }
+    
+    # Agrega filtro de RUT por proveedor 
+    # 
+    
+    if (!is.null(rut_proveedor)){
+      query <- paste0(query, "AND P.RUTSucursal = '",rut_proveedor ,"'")
+    }
+    
+    if (!is.null(entcode_proveedor)){
+      query <- paste0(query, "AND E.entCode = '",entcode_proveedor ,"'")
     }
     
     cat("La Query es la siguiente:"
@@ -968,33 +1037,7 @@ server <- function(input, output, session) {
     cat("Realizando consulta a la base de datos.")
   })
   
-  # VALIDADOR RUT PROVEEDOR =======================================
-  
-  observeEvent(input$prv_validate_button, {
-    rut <- input$rut_prv
-    # Expresión regular para validar RUT en formato 00.000.000-0 o 00.000.000-9
-    rut_regex <- "^\\d{1,2}\\.\\d{1,3}\\.\\d{1,3}-[0-9kK]{1}$"
-    
-    if (nchar(trimws(rut)) > 0) {
-      if (grepl(rut_regex, rut)) {
-        output$prv_validation_result <- renderPrint({
-          paste("El RUT", rut, "es válido.")
-        })
-      } else {
-        output$prv_validation_result <- renderPrint({
-          paste("El RUT", rut, "no tiene el formato correcto.")
-        })
-      }
-    } else {
-      # Si no se ingresa ningún valor, establece input$rut_input como NULL
-      input$rut_prv <- NULL
-      output$prv_validation_result <- renderPrint({
-        NULL
-      })
-      # Invalidar la salida después de 5 segundos
-      invalidateLater(5000, session)
-    }
-  })
+ 
   
   
   #Botón para consultar PROVEEDORES ========================================================== 
