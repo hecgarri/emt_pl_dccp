@@ -30,12 +30,12 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
                    dateRangeInput("fecha", "Rango de fechas:",
                                   start = Sys.Date() %m-% months(14),
                                   end = Sys.Date() %m-% months(13)),
-                   textInput("rut_inst", "Ingrese RUT de la unidad de compra (opcional):", placeholder = "Ej: 12.345.678-9"),
-                   textInput("entcode_inst", "Ingrese entCode de la unidad de compra (opcional):", placeholder = "Ej: 12345"),
                    uiOutput("region_select"),
                    uiOutput("procedencia_select"), # Nuevo selectInput para procedencia
                    uiOutput("institucion_select"), # Nuevo selectInput según institución
                    uiOutput("sector_select"), #Nuevo selectInput según sector
+                   textInput("rut_inst", "Ingrese RUT de la unidad de compra (opcional):", placeholder = "Ej: 12.345.678-9"),
+                   textInput("entcode_inst", "Ingrese entCode de la Institución (opcional):", placeholder = "Ej: 12345"),
                    selectInput("detalle", label = "¿Desea ver el detalle por productos?",
                                choices = c("Sí" = TRUE, "No" = FALSE),
                                selected = FALSE),
@@ -295,7 +295,7 @@ server <- function(input, output, session) {
         showModal(
           modalDialog(
           title = "¡Advertencia!",
-          "Cuando selecciona el detalle de productos los montos son netos (sin impuesto)",
+          "El detalle por productos puede ralentizar bastante la consulta",
           easyClose = TRUE,
           footer = NULL
         )
@@ -601,14 +601,17 @@ server <- function(input, output, session) {
     ,OL.Monto [Monto (neto) producto] 
 		,REPLACE(REPLACE(REPLACE(OL.NombreItem, CHAR(13), ''), CHAR(10), ''),';',',') AS [Nombre producto]
 		,REPLACE(REPLACE(REPLACE(OL.DescripcionItem, CHAR(13), ''), CHAR(10), ''),';',',') AS DescripcionItem
-		,RU.RubroN1 [Rubro Proveedor]")
+		,RU.RubroN1 [Rubro Producto]")
     }
     
     
     query <- paste0(query,"
-		    ,OC.MontoUSD [Monto total USD]
-		    ,OC.MontoCLP [Monto total pesos]
-		    ,OC.MontoCLF [Monto total UF]
+		    ,OC.MontoUSD [Monto neto OC (dólares)]
+		    ,OC.MontoCLP [Monto neto OC (pesos)]
+		    ,OC.MontoCLF [Monto neto OC (UF)]
+		    ,OC.ImpuestoUSD [Impuesto OC (dólares)]
+		    ,OC.ImpuestoCLP [Impuesto OC (pesos)]
+		    ,OC.ImpuestoCLF [Impuesto OC (UF)]
         ,C.RUTUnidaddeCompra [RUT Unidad de Compra]
         ,UPPER(C.NombreUnidaddeCompra) [Nombre Unidad de Compra]
 		    ,I.entCode [entCode (Comprador)]
@@ -747,7 +750,7 @@ server <- function(input, output, session) {
       showModal(
         modalDialog(
           title = "Confirmación de consulta",
-          paste("El resultado de la consulta contiene", num_filas, "filas.", "Recuerde que Microsoft Excel tiene un límite de 1.000.000 de filas ¿Desea continuar con la consulta?"),
+          paste("El resultado de la consulta contiene", num_filas, "filas.", "Recuerde que Microsoft Excel tiene un límite de 1.000.000 de filas ¿Desea continuar?"),
           footer = tagList(
             modalButton("Cancelar"),
             actionButton("confirmar_btn", "Continuar")
