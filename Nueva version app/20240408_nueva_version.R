@@ -195,7 +195,7 @@ server <- function(input, output, session) {
   observe({
     # Obtener las procedencias disponibles
     procedencias_disponibles <<- unique(sqlQuery(con3, 
-                                                 "SELECT DISTINCT 
+     "SELECT DISTINCT 
             CASE OC.porisintegrated 
               WHEN 3 THEN 'Compra Agil'
               ELSE (CASE  OC.IDProcedenciaOC
