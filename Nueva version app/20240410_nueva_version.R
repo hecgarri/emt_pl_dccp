@@ -31,8 +31,9 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
                                   start = Sys.Date() %m-% months(14),
                                   end = Sys.Date() %m-% months(13)),
                    uiOutput("region_select"),
-                   uiOutput("procedencia_select"), # Nuevo selectInput para procedencia
                    uiOutput("institucion_select"), # Nuevo selectInput según institución
+                   uiOutput("procedencia_select"), # Nuevo selectInput para procedencia
+                   uiOutput("detalle_licitaciones"), # Selector condicional para obtener detalle sobre las licitaciones
                    uiOutput("sector_select"), #Nuevo selectInput según sector
                    textInput("rut_inst", "Ingrese RUT de la unidad de compra (opcional):", placeholder = "Ej: 12.345.678-9"),
                    textInput("entcode_inst", "Ingrese entCode de la Institución (opcional):", placeholder = "Ej: 12345"),
@@ -368,9 +369,7 @@ server <- function(input, output, session) {
   })  
   
   
-  
-  
-  # PANEL DESPLEGABLE proveedores ==============================
+  # PANEL DESPLEGABLE PROVEEDORES ==============================
   
   observeEvent(input$prv_detalle, {
     # Actualiza el estado del panel condicional
@@ -407,6 +406,24 @@ server <- function(input, output, session) {
         NULL
       }
     }) 
+  }
+  ) 
+  
+  # PANEL DESLPLEGABLE PROCEDENCIAS ================================
+  
+  # Aquí va un  selector que pregunta sobre el detalle de las licitaciones
+  observeEvent(input$procedencia_select,{
+    output$detalle_licitaciones <- renderUI(
+      {
+      if (input$procedencia_select == 'Licitación Pública'){
+        selectInput("lic_detalle", "¿Desea detalles sobre las licitaciones?",
+                    choices = c("Sí"=TRUE, "No" = FALSE),
+                    selected = FALSE)  
+      } else {
+        NULL
+      }
+    }
+    ) 
   }
   ) 
   
@@ -558,9 +575,10 @@ server <- function(input, output, session) {
         T.Year
         ,L.Region
         ,T.Date [Fecha Envío OC]
-        ,OC.NombreOC
+        ,REPLACE(REPLACE(REPLACE(OC.NombreOC, CHAR(13), ''), CHAR(10), ''),';',',') AS [NombreOC]
         ,OC.CodigoOC
-		    ,OC.MonedaOC [Tipo de moneda]")
+		    ,REPLACE(ISNULL(OC.MonedaOC, 'Sin Tipo'), '', 'Sin Tipo') [Tipo de moneda]"
+      )
     
     if (input$detalle){
       query <- paste0(query,"
@@ -1073,7 +1091,7 @@ server <- function(input, output, session) {
         ,T.Date [Fecha envío OC]
         ,REPLACE(REPLACE(OC.NombreOC, CHAR(13), ''), CHAR(10), '') AS NombreOC
         ,OC.CodigoOC
-		,OC.MonedaOC [Tipo de moneda]
+		,REPLACE(ISNULL(OC.MonedaOC, ''), '', 'Sin Moneda') [Tipo de moneda]
 		,OC.MontoUSD+OC.ImpuestoUSD [Monto Bruto USD]
 		,OC.MontoCLP+OC.ImpuestoCLP [Monto Bruto CLP]
 		,OC.MontoCLF+OC.ImpuestoCLF [Monto Bruto CLF]
@@ -1768,7 +1786,7 @@ server <- function(input, output, session) {
       paste(gsub("-","",Sys.Date())," detalle Ordenes de compra", ".csv", sep="")
     },
     content = function(file) {
-      write.table(datos_consultados(), file = file, sep = ";", quote = TRUE,fileEncoding = "latin1", dec = ",", na = "", row.names = FALSE)
+      write.table(datos_consultados(), file = file, sep = ";", quote = FALSE,fileEncoding = "latin1", dec = ",", na = "", row.names = FALSE)
     }
   )
   
@@ -1778,7 +1796,7 @@ server <- function(input, output, session) {
       paste(gsub("-","",Sys.Date())," detalle usuarios compradores", ".csv", sep="")
     },
     content = function(file) {
-      write.table(compradores_consultados(), file = file, sep = ";", quote = TRUE,fileEncoding = "latin1", dec = ",", na = "", row.names = FALSE)
+      write.table(compradores_consultados(), file = file, sep = ";", quote = FALSE,fileEncoding = "latin1", dec = ",", na = "", row.names = FALSE)
     }
   )
   
@@ -1790,7 +1808,7 @@ server <- function(input, output, session) {
       paste(gsub("-","",Sys.Date())," detalle reclamos", ".csv", sep="")
     },
     content = function(file) {
-      write.table(reclamos_consultados(), file = file, sep = ";",  quote = TRUE,fileEncoding = "latin1", dec = ",", na = "", row.names = FALSE, eol = "\n")
+      write.table(reclamos_consultados(), file = file, sep = ";",  quote = FALSE,fileEncoding = "latin1", dec = ",", na = "", row.names = FALSE, eol = "\n")
     }
   )
   
