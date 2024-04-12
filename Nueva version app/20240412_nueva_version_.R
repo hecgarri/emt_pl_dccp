@@ -12,7 +12,7 @@ library(markdown)
 library(purrr)
 
 # Establece conexiones a los diferentes servidores
-con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")
+
 
 con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
 
@@ -30,9 +30,9 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
                  sidebarPanel(
                    dateRangeInput("fecha", "Rango de fechas:",
                                   start = as.Date('2024-02-01'),
-                                    #Sys.Date() %m-% months(14),
+                                  #Sys.Date() %m-% months(14),
                                   end = as.Date('2024-02-02')),
-                                    #Sys.Date() %m-% months(13)),
+                   #Sys.Date() %m-% months(13)),
                    uiOutput("region_select"),
                    uiOutput("institucion_select"), # Nuevo selectInput según institución
                    uiOutput("procedencia_select"), # Nuevo selectInput para procedencia
@@ -73,7 +73,7 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
           # # Agrega aquí el contenido principal de tu aplicación, como la tabla o el gráfico
           
           DTOutput("inst_resultado")
-  
+          
           #,
           #plotlyOutput("combined_plot")
         )
@@ -181,6 +181,7 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
 server <- function(input, output, session) {
   
   # CONSULTAS PARA LISTAS DESPLEGABLES DATAWAREHOUSE================================================
+  con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")
   
   regiones_disponibles <- NULL
   procedencias_disponibles <- NULL # Variable para procedencias
@@ -215,7 +216,7 @@ server <- function(input, output, session) {
   observe({
     # Obtener las procedencias disponibles
     procedencias_disponibles <<- unique(sqlQuery(con3, 
-     "SELECT DISTINCT 
+                                                 "SELECT DISTINCT 
             CASE OC.porisintegrated 
               WHEN 3 THEN 'Compra Agil'
               ELSE (CASE  OC.IDProcedenciaOC
@@ -275,72 +276,74 @@ server <- function(input, output, session) {
     
   })
   
+  RODBC::odbcClose(con3)
+  
   #Selectores para el panel de TRANSACCIONES ==========================================
   
-    # Aquí va el selector de regiones para el panel de transacciones
-    output$region_select <- renderUI({
-      selectInput("region", "Selecciona una región:",
-                  choices = c("Todas las regiones", regiones_disponibles$Region),
-                  selected = 'Todas las regiones')
-                    #regiones_disponibles$Region[17])
-    })
-    
-    # Aquí va el selector de procedencia para el panel de transacciones
-    output$procedencia_select <- renderUI({
-      selectInput("procedencia", "Selecciona una procedencia:",
-                  choices = c("Todas las procedencias", procedencias_disponibles$Procedencia),
-                  selected = 'Todas las procedencias')
-                    #procedencias_disponibles$Procedencia[1])
-    })
-    
-    # Aquí va el selector de instituciones para el panel de transacciones 
-    output$institucion_select <- renderUI({
-      selectInput("institucion", "Selecciona una Institución:",
-                  choices = c("Todas las instituciones"
-                              , institucion_disponibles$NombreInstitucion),
-                  selected = "Todas las instituciones")
-    })
-    
-    #Aquí va el selector de sectores para el panel de transacciones 
-    # Nuevo selectInput para sector
-    output$sector_select <- renderUI({
-      selectInput("sector", "Selecciona un sector:",
-                  choices = c("Todos los sectores", sectores_disponibles$Sector),
-                  selected = "Todos los sectores")
-    })  
-    
-    # Mensaje de advertencia cuando se selecciona detalle productos ===============================
-    
-    observeEvent(input$detalle, {
-      opcion_seleccionada <- input$detalle
-      if (opcion_seleccionada) {
-        showModal(
-          modalDialog(
+  # Aquí va el selector de regiones para el panel de transacciones
+  output$region_select <- renderUI({
+    selectInput("region", "Selecciona una región:",
+                choices = c("Todas las regiones", regiones_disponibles$Region),
+                selected = 'Todas las regiones')
+    #regiones_disponibles$Region[17])
+  })
+  
+  # Aquí va el selector de procedencia para el panel de transacciones
+  output$procedencia_select <- renderUI({
+    selectInput("procedencia", "Selecciona una procedencia:",
+                choices = c("Todas las procedencias", procedencias_disponibles$Procedencia),
+                selected = 'Todas las procedencias')
+    #procedencias_disponibles$Procedencia[1])
+  })
+  
+  # Aquí va el selector de instituciones para el panel de transacciones 
+  output$institucion_select <- renderUI({
+    selectInput("institucion", "Selecciona una Institución:",
+                choices = c("Todas las instituciones"
+                            , institucion_disponibles$NombreInstitucion),
+                selected = "Todas las instituciones")
+  })
+  
+  #Aquí va el selector de sectores para el panel de transacciones 
+  # Nuevo selectInput para sector
+  output$sector_select <- renderUI({
+    selectInput("sector", "Selecciona un sector:",
+                choices = c("Todos los sectores", sectores_disponibles$Sector),
+                selected = "Todos los sectores")
+  })  
+  
+  # Mensaje de advertencia cuando se selecciona detalle productos ===============================
+  
+  observeEvent(input$detalle, {
+    opcion_seleccionada <- input$detalle
+    if (opcion_seleccionada) {
+      showModal(
+        modalDialog(
           title = "¡Advertencia!",
           "El detalle por productos puede ralentizar bastante la consulta",
           easyClose = TRUE,
           footer = NULL
         )
-        )
-      }
-    })
+      )
+    }
+  })
   
-    # Mensaje de advertencia cuando se selecciona el detalle de proveedores con respecto a los tamaños ====================
-    # 
-    
-    observeEvent(input$prv_detalle, {
-      opcion_seleccionada <- input$prv_detalle
-      if (opcion_seleccionada) {
-        showModal(
-          modalDialog(
-            title = "¡Advertencia!",
-            "Considere la información sobre tamaños de empresas como provisional. Se están realizando desarrollos en la base de datos",
-            easyClose = TRUE,
-            footer = NULL
-          )
+  # Mensaje de advertencia cuando se selecciona el detalle de proveedores con respecto a los tamaños ====================
+  # 
+  
+  observeEvent(input$prv_detalle, {
+    opcion_seleccionada <- input$prv_detalle
+    if (opcion_seleccionada) {
+      showModal(
+        modalDialog(
+          title = "¡Advertencia!",
+          "Considere la información sobre tamaños de empresas como provisional. Se están realizando desarrollos en la base de datos",
+          easyClose = TRUE,
+          footer = NULL
         )
-      }
-    })
+      )
+    }
+  })
   
   #Selectores para el panel de USUARIOS ====================================== 
   
@@ -420,14 +423,14 @@ server <- function(input, output, session) {
   observeEvent(input$procedencia_select,{
     output$detalle_licitaciones <- renderUI(
       {
-      if (input$procedencia_select == 'Licitación Pública'){
-        selectInput("lic_detalle", "¿Desea detalles sobre las licitaciones?",
-                    choices = c("Sí"=TRUE, "No" = FALSE),
-                    selected = FALSE)  
-      } else {
-        NULL
+        if (input$procedencia_select == 'Licitación Pública'){
+          selectInput("detalle_lic", "¿Desea detalles sobre las licitaciones?",
+                      choices = c("Sí"=TRUE, "No" = FALSE),
+                      selected = TRUE)  
+        } else {
+          NULL
+        }
       }
-    }
     ) 
   }
   ) 
@@ -477,9 +480,14 @@ server <- function(input, output, session) {
   
   reclamos_consultados <- reactiveVal(NULL)
   
-
+  
   #Botón para consultar TRANSACCIONES ============================================================
   observeEvent(input$consultar_btn, {
+    
+    
+    
+    con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")  
+    
     
     print("Botón 'consultar_btn' presionado en el panel de usuarios")
     # Obtener la región seleccionada  para el panel de transacciones 
@@ -489,6 +497,7 @@ server <- function(input, output, session) {
     } else {
       region_seleccionada <- input$region
     }
+    
     
     cat("La región seleccionada para el panel de transacciones es:\n"
         ,"===========================================================\n"
@@ -504,9 +513,13 @@ server <- function(input, output, session) {
       procedencia_seleccionada <- input$procedencia
     }
     
+    
+    
     cat("La procedencia seleccionada para el panel de transacciones es:\n"
         ,procedencia_seleccionada
         ,"\n ===========================================================\n")
+    
+    
     
     
     # Obtener la Institución para el panel de transacciones
@@ -531,6 +544,11 @@ server <- function(input, output, session) {
       sector_seleccionado <- input$sector
     }
     
+    cat("El sector seleccionado para el panel de transacciones es:\n"
+        ,institucion_seleccionada
+        ,"\n ===========================================================\n")
+    
+    
     
     # Obtener el rut seleccionado para el panel de transacciones
     if(input$rut_inst == "") {
@@ -540,6 +558,8 @@ server <- function(input, output, session) {
       rut_seleccionado <- input$rut_inst
     }
     
+    
+    
     # Obtener el rut seleccionado para el panel de transacciones
     if(input$entcode_inst == "") {
       # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
@@ -548,29 +568,47 @@ server <- function(input, output, session) {
       entcode_seleccionado <- input$entcode_inst
     }
     
-    # Obtener el rut seleccionado para proveedores
-    if(input$rut_prv == "") {
-      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+    
+    if (input$prv_detalle){
+      # Obtener el rut seleccionado para proveedores
+      if(input$rut_prv == "") {
+        # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+        rut_proveedor <- NULL
+      } else {
+        rut_proveedor <- input$rut_prv
+      }
+    } else {
       rut_proveedor <- NULL
-    } else {
-      rut_proveedor <- input$rut_prv
     }
     
-    # Obtener el entCode seleccionado para el panel de transacciones
-    if(input$entcode_prv == "") {
-      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
-      entcode_proveedor <- NULL
+    
+    
+    if (input$prv_detalle){
+      # Obtener el entCode seleccionado para el panel de transacciones
+      if(input$entcode_prv == "") {
+        # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+        entcode_proveedor <- NULL
+      } else {
+        entcode_proveedor <- input$entcode_prv
+      }  
     } else {
-      entcode_proveedor <- input$entcode_prv
+      entcode_proveedor <- NULL 
     }
     
-    # Obtener el tamaños seleccionado para el panel de transacciones 
-    if(input$prv_tamano == "Todos los tamaños") {
-      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+    
+    
+    if (input$prv_detalle){
+      # Obtener el tamaños seleccionado para el panel de transacciones
+      if(input$prv_tamano == "Todos los tamaños") {
+        # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+        tamano_proveedor <- NULL
+      } else {
+        tamano_proveedor <- input$prv_tamano
+      }  
+    } else {
       tamano_proveedor <- NULL
-    } else {
-      tamano_proveedor <- input$prv_tamano
     }
+    
     
     cat("El sector seleccionado para el panel de transacciones es:\n"
         ,sector_seleccionado
@@ -586,7 +624,7 @@ server <- function(input, output, session) {
         ,REPLACE(REPLACE(REPLACE(REPLACE(OC.NombreOC, 'CHAR(13)', ''), CHAR(10), ''),';',','),'~',' ') AS [NombreOC]
         ,OC.CodigoOC
 		    ,REPLACE(OC.MonedaOC, '', 'Sin Tipo') [Tipo de moneda]"
-      )
+    )
     
     if (input$detalle){
       query <- paste0(query,"
@@ -765,6 +803,7 @@ server <- function(input, output, session) {
       updateActionButton(session, "consultar", label = "Consultar", icon = icon("search"))
     }
     
+    RODBC::odbcClose(con3)  
     
   })
   
@@ -773,28 +812,48 @@ server <- function(input, output, session) {
     # Ocultar la ventana emergente
     removeModal()
     
+    con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")
+    
     # Ejecuta la consulta completa 
     resultado <- withProgress(message = "Realizando consulta a la base de datos", value = 0, {
       sqlQuery(con3, consulta_())
+      
+      
     })
     
     # MODIFICA Columnas de tipo carácter para eliminar los molestos ; ==================================================
     
-  
+    #print(names(resultado))
     
-    columnas_character <- apply(resultado,2, function(x) class(x) == "character")
     
-    resultado_ <- resultado %>% 
-      mutate_at(vars(names(resultado)[columnas_character]),~str_replace_all(.,"[^[:alnum:],.\\s-]", "")) %>% 
-      mutate(
-        `Monto (neto) producto` = str_replace(as.character(`Monto (neto) producto`) ,'\\.',',')
-        ,`Monto neto OC (dólares)` = str_replace(as.character(`Monto neto OC (dólares)`) ,'\\.',',')
-        ,`Monto neto OC (pesos)` = str_replace(as.character(`Monto neto OC (pesos)`) ,'\\.',',')
-        ,`Monto neto OC (UF)` = str_replace(as.character(`Monto neto OC (UF)`) ,'\\.',',')
+    if (input$detalle){
+      columnas_character <- apply(resultado,2, function(x) class(x) == "character")
+      
+      resultado_ <- resultado %>% ungroup() %>% 
+        mutate_at(vars(names(resultado)[columnas_character]),~str_replace_all(.,"[^[:alnum:],.\\s-]", "")) %>% 
+        mutate(
+          `Monto (neto) producto` = str_replace(as.character(`Monto (neto) producto`) ,'\\.',',')
+          ,`Monto neto OC (dólares)` = str_replace(as.character(`Monto neto OC (dólares)`) ,'\\.',',')
+          ,`Monto neto OC (pesos)` = str_replace(as.character(`Monto neto OC (pesos)`) ,'\\.',',')
+          ,`Monto neto OC (UF)` = str_replace(as.character(`Monto neto OC (UF)`) ,'\\.',',')
         ) %>%
-      arrange(desc(`Monto neto OC (dólares)`))
+        arrange(desc(`Monto neto OC (dólares)`))  
+    } else {
       
+      columnas_character <- apply(resultado,2, function(x) class(x) == "character")
       
+      print(names(resultado))[columnas_character]
+      
+      resultado_ <- resultado %>% ungroup() %>% 
+        mutate_at(vars(names(resultado)[columnas_character]),~str_replace_all(.,"[^[:alnum:],.\\s-]", "")) %>% 
+        mutate(
+          `Monto neto OC (dólares)` = str_replace(as.character(`Monto neto OC (dólares)`) ,'\\.',',')
+          ,`Monto neto OC (pesos)` = str_replace(as.character(`Monto neto OC (pesos)`) ,'\\.',',')
+          ,`Monto neto OC (UF)` = str_replace(as.character(`Monto neto OC (UF)`) ,'\\.',',')
+        ) %>%
+        arrange(desc(`Monto neto OC (dólares)`))  
+    }
+    
     
     
     datos_consultados(resultado_)
@@ -803,37 +862,15 @@ server <- function(input, output, session) {
     # cat("Realizando consulta a la base de datos. \n\n\n"
     #     ,head(resultado)
     #     ,"========================================================================= \n\n\n")
-    print(head(resultado_[,c("Monto neto OC (dólares)","Monto neto OC (pesos)","Monto neto OC (UF)","Monto (neto) producto")],n = 30))
-    print(tail(resultado_[,c("Monto neto OC (dólares)","Monto neto OC (pesos)","Monto neto OC (UF)","Monto (neto) producto")],n = 10))
-  })
-  
-  # VALIDADOR RUT USUARIO =======================================
-  
-  observeEvent(input$usr_validate_button, {
-    rut <- input$rut_usr
-    # Expresión regular para validar RUT en formato 00.000.000-0 o 00.000.000-9
-    rut_regex <- "^\\d{1,2}\\.\\d{1,3}\\.\\d{1,3}-[0-9kK]{1}$"
+    print(head(resultado_[,c("Monto neto OC (dólares)","Monto neto OC (pesos)","Monto neto OC (UF)")],n = 30))
+    print(tail(resultado_[,c("Monto neto OC (dólares)","Monto neto OC (pesos)","Monto neto OC (UF)")],n = 10))
     
-    if (nchar(trimws(rut)) > 0) {
-      if (grepl(rut_regex, rut)) {
-        output$usr_validation_result <- renderPrint({
-          paste("El RUT", rut, "es válido.")
-        })
-      } else {
-        output$usr_validation_result <- renderPrint({
-          paste("El RUT", rut, "no tiene el formato correcto.")
-        })
-      }
-    } else {
-      # Si no se ingresa ningún valor, establece input$rut_input como NULL
-      input$rut_usr <- NULL
-      output$usr_validation_result <- renderPrint({
-        NULL
-      })
-      # Invalidar la salida después de 5 segundos
-      invalidateLater(5000, session)
-    }
+    RODBC::odbcClose(con3)
+    
+    
   })
+  
+  
   
   
   
@@ -900,7 +937,7 @@ server <- function(input, output, session) {
     
     # Query USUARIOS ============================================================
     
-    #,REPLACE(REPLACE(REPLACE(OL.DescripcionItem, CHAR(13), ''), CHAR(10), ''),';',',') AS DescripcionItem
+    
     
     usr_query <- paste0(
       "SELECT  DISTINCT
@@ -955,7 +992,6 @@ server <- function(input, output, session) {
     }
     
     
-    
     # Agregar condición de procedencia si no es "Todas las procedencias"
     if(!is.null(procedencia_seleccionada)) {
       usr_query <- paste0(usr_query, " AND (CASE OC.porisintegrated WHEN 3 THEN 'Compra Agil'
@@ -992,7 +1028,7 @@ server <- function(input, output, session) {
     
     usr_consulta_(usr_query)
     
-    
+    con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")
     # Realizar la consulta solo cuando se presiona el botón "Consultar"
     req(input$usr_consultar_btn)  # Espera a que se presione el botón "Consultar"
     
@@ -1029,12 +1065,16 @@ server <- function(input, output, session) {
       compradores_consultados(resultado)
       updateActionButton(session, "consultar", label = "Consultar", icon = icon("search"))
     }
+    
+    RODBC::odbcClose(con3)
   })
   
   
   # Botón para confirMar consulta USUARIOS ==================================================== 
   
   observeEvent(input$usr_confirmar_btn, {
+    
+    con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")
     # Ocultar la ventana emergente
     removeModal()
     
@@ -1046,212 +1086,8 @@ server <- function(input, output, session) {
     updateActionButton(session, "usr_consultar_btn", label = "Consultar", icon = icon("search"))
     
     cat("Realizando consulta a la base de datos.")
-  })
-  
- 
-  
-  
-  #Botón para consultar PROVEEDORES ========================================================== 
-  observeEvent(input$prv_consultar_btn, {
     
-    
-    # Obtener la región seleccionada por el usuario
-    if(input$prv_region == "Todas las regiones") {
-      # Si se selecciona "Todas las regiones", no se aplica filtro por región en la consulta SQL
-      region_seleccionada <- NULL
-    } else {
-      region_seleccionada <- input$prv_region
-    }
-    
-    cat("\n la región seleccionada para la consulta de usuarios es: \n"
-        ,region_seleccionada
-        ," ==============================================================\n\n\n")
-    
-    # Obtener la procedencia seleccionada por el usuario
-    if(input$prv_procedencia == "Todas las procedencias") {
-      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
-      procedencia_seleccionada <- NULL
-    } else {
-      procedencia_seleccionada <- input$prv_procedencia
-    }
-    
-    cat("\n la procedencia_seleccionada para la consulta de usuarios es: \n"
-        ,procedencia_seleccionada
-        ," ==============================================================\n\n\n")
-    
-    
-    # Obtener la Institución seleccionada por el usuario
-    if(input$prv_institucion == "Todas las instituciones") {
-      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
-      institucion_seleccionada <- NULL
-    } else {
-      institucion_seleccionada <- input$prv_institucion
-    }
-    
-    cat("\n la institución seleccioada para la consulta de usuarios es: \n"
-        ,institucion_seleccionada
-        ," ==============================================================\n\n\n")
-    
-    # Obtener el sector seleccionado para el panel de usuarios
-    if(input$prv_sector == "Todos los sectores") {
-      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
-      sector_seleccionado <- NULL
-    } else {
-      sector_seleccionado <- input$prv_sector
-    }
-    
-    # Obtener el rut seleccionado para el panel de usuarios
-    if(input$rut_prv == "") {
-      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
-      rut_seleccionado <- NULL
-    } else {
-      rut_seleccionado <- input$rut_prv
-    }
-    
-    cat("\n El sector seleccionado para la consulta de usuarios es: \n"
-        ,sector_seleccionado
-        ," ==============================================================\n\n\n")
-    
-    # Query PROVEEDORES ====================================================
-    
-    prv_query <- paste0(
-      "SELECT  
-        T.Year
-        ,L.Region
-        ,T.Date [Fecha envío OC]
-        ,REPLACE(REPLACE(OC.NombreOC, CHAR(13), ''), CHAR(10), '') AS NombreOC
-        ,OC.CodigoOC
-		,REPLACE(ISNULL(OC.MonedaOC, ''), '', 'Sin Moneda') [Tipo de moneda]
-		,OC.MontoUSD+OC.ImpuestoUSD [Monto Bruto USD]
-		,OC.MontoCLP+OC.ImpuestoCLP [Monto Bruto CLP]
-		,OC.MontoCLF+OC.ImpuestoCLF [Monto Bruto CLF]
-    ,C.RUTUnidaddeCompra [RUT Unidad de Compra]
-    ,UPPER(C.NombreUnidaddeCompra) [Nombre Unidad de Compra]
-    ,UPPER(I.NombreInstitucion) [Nombre Institucion]
-    ,S.Sector
-        ,(CASE  WHEN OC.porisintegrated=3 THEN 'Compra Agil'
-                ELSE (CASE  OC.IDProcedenciaOC
-                      WHEN 703 THEN 'Convenio Marco'
-                      WHEN 701 THEN 'Licitación Pública'
-                      WHEN 1401 THEN 'Licitación Pública'
-                      WHEN 702 THEN 'Licitación Privada'
-                      ELSE 'Trato Directo' END)
-        END) [Procedencia]
-        ,UPPER(P.RazonSocialSucursal) [Razón social Proveedor]
-        ,P.RUTSucursal [Rut Proveedor]
-        ,L2.Region [Región Proveedor]
-        ,DTP.Tamano [Tamaño Proveedor]
-      FROM [DM_Transaccional].[dbo].[THOrdenesCompra] as OC
-        INNER JOIN [DM_Transaccional].[dbo].[DimTiempo] as T ON OC.IDFechaEnvioOC = T.DateKey
-        INNER JOIN [DM_Transaccional].[dbo].[DimComprador] as C ON OC.IDUnidaddeCompra = C.IDUnidaddeCompra
-        INNER JOIN [DM_Transaccional].[dbo].[DimInstitucion] as I ON C.entCode = I.entCode
-        INNER JOIN [DM_Transaccional].[dbo].[DimLocalidad] as L ON L.IDLocalidad = C.IDLocalidadUnidaddeCompra
-        INNER JOIN [DM_Transaccional].[dbo].[DimSector] as S ON I.IdSector = S.IdSector
-        INNER JOIN [DM_Transaccional].[dbo].[DimProveedor] as P ON OC.IDSucursal=P.IDSucursal
-        INNER JOIN [DM_Transaccional].[dbo].[DimEmpresa] as E ON P.entCode = E.entCode 
-        INNER JOIN [DM_Transaccional].[dbo].[DimLocalidad] as L2 ON L2.IDLocalidad = P.IDLocalidadSucursal
-        LEFT JOIN [DM_Transaccional].[dbo].[THTamanoProveedor] as TP ON P.entCode=TP.entCode AND TP.AñoTributario = 2022
-        LEFT JOIN [DM_Transaccional].[dbo].[DimTamanoProveedor] as DTP ON TP.idTamano = DTP.IdTamano
-      WHERE  OC.IDFechaEnvioOC BETWEEN '", gsub("-", "", input$prv_fecha[1]), "' AND '", gsub("-", "", input$prv_fecha[2]), "'
-       AND OC.IDEstadoOC IN  (4,5,6,7,12)"
-    )
-    
-    # Agregar condición de región si no es "Todas las regiones"
-    if(!is.null(region_seleccionada)) {
-      prv_query <- paste0(prv_query, " AND L.Region = '", region_seleccionada, "'")
-    }
-    
-    # Agregar condición de región si no es "Todas las regiones"
-    if(!is.null(rut_seleccionado)) {
-      prv_query <- paste0(prv_query, " AND P.RUTSucursal = '", rut_seleccionado, "'")
-    }
-    
-    # Agregar condición de procedencia si no es "Todas las procedencias"
-    if(!is.null(procedencia_seleccionada)) {
-      prv_query <- paste0(prv_query, " AND (CASE OC.porisintegrated WHEN 3 THEN 'Compra Agil'
-                                              ELSE (CASE  OC.IDProcedenciaOC
-                                              WHEN 703 THEN 'Convenio Marco'
-                                              WHEN 701 THEN 'Licitación Pública'
-                                              WHEN 1401 THEN 'Licitación Pública'
-                                              WHEN 702 THEN 'Licitación Privada'
-                                              ELSE 'Trato Directo' END) END) = '", procedencia_seleccionada, "'")
-    }
-    
-    # Agregar condición de institución si no es "Todas las instituciones"
-    if(!is.null(institucion_seleccionada)) {
-      prv_query <- paste0(prv_query, " AND I.NombreInstitucion = '", institucion_seleccionada, "'")
-    }
-    #rowser()
-    
-    
-    
-    # Agregar condición de sector si no es "Todos los sectores"
-    if(!is.null(sector_seleccionado)) {
-      prv_query <- paste0(prv_query, " AND S.Sector = '", sector_seleccionado, "'")
-    }
-    
-    cat("La Query es la siguiente:"
-        ,"\n ==============================================================\n\n"
-        ,prv_query
-        ,"\n ==============================================================\n\n"
-        ,"\n ==============================================================\n\n"
-        ,"\n ==============================================================\n\n")
-    
-    prv_consulta_(prv_query)
-    
-    
-    # Realizar la consulta solo cuando se presiona el botón "Consultar"
-    req(input$prv_consultar_btn)  # Espera a que se presione el botón "Consultar"
-    
-    
-    
-    # Realizar una preconsulta rápida para obtener el número de filas
-    num_filas <- withProgress(message = "Realizando preconsulta rápida...", value = 0, {
-      sqlQuery(con3, paste("SELECT COUNT(*) AS NumFilas FROM (", prv_query, ") AS SubConsulta"))
-    })
-    
-    # Obtener el número de filas desde el resultado de la preconsulta
-    num_filas <- as.numeric(num_filas$NumFilas)
-    
-    if (num_filas > umbral_filas) {
-      # Si el número de filas supera el umbral, mostrar una ventana emergente para confirmar la consulta completa
-      showModal(
-        modalDialog(
-          title = "Confirmación de consulta",
-          paste("El resultado de la consulta contiene", num_filas, "filas.", "¿Desea continuar con la consulta?"),
-          footer = tagList(
-            modalButton("Cancelar"),
-            actionButton("prv_confirmar_btn", "Continuar")
-          )
-        )
-      )
-    } else if (num_filas <= 0) {
-      # Si el número de filas es menor o igual a cero, imprimir un mensaje en la pantalla
-      showNotification("No se encontraron resultados para esta consulta.", duration = 10)
-    } else {
-      # Si el número de filas es mayor que cero pero menor o igual al umbral, ejecutar la consulta completa y mostrar los datos
-      resultado <- withProgress(message = "Realizando consulta a la base de datos", value = 0, {
-        sqlQuery(con3, prv_consulta_())
-      })
-      proveedores_consultados(resultado)
-      updateActionButton(session, "consultar", label = "Consultar", icon = icon("search"))
-    }
-  })
-  
-  # Botón para confirmar consulta PROVEEDORES =============================================================
-  # Observador para el botón de confirmación en la ventana emergente para el panel de usuarios 
-  observeEvent(input$prv_confirmar_btn, {
-    # Ocultar la ventana emergente
-    removeModal()
-    
-    # Ejecuta la consulta completa 
-    resultado <- withProgress(message = "Realizando consulta a la base de datos", value = 0, {
-      sqlQuery(con3, prv_consulta_())
-    })
-    proveedores_consultados(resultado)
-    updateActionButton(session, "prv_consultar_btn", label = "Consultar", icon = icon("search"))
-    
-    cat("Realizando consulta a la base de datos.")
+    RODBC::odbcClose(con3)
   })
   
   
@@ -1491,7 +1327,7 @@ server <- function(input, output, session) {
                   # ,`Monto total en pesos (millones)` = round(sum(`Monto Bruto CLP`, na.rm = TRUE)/1000000,1),
                   # `Monto total en UF (millones)` = round(sum(`Monto Bruto CLF`, na.rm = TRUE)/1000000,1),
                   # `Monto total en dólares (millones)` = round(sum(`Monto Bruto USD`, na.rm = TRUE)/1000000,1)
-                  ) %>% 
+        ) %>% 
         arrange(desc(`Total de órdenes de compra`))
       
     }
@@ -1764,30 +1600,6 @@ server <- function(input, output, session) {
     datatable(usr_aggregated)
   })
   
-  # Renderiza resultados de PROVEEDORES ======================================== 
-  
-  output$prv_resultado <- renderDT({
-    # Renderiza los datos en la tabla DT
-    req(proveedores_consultados())  # Requiere que los datos estén disponibles
-    
-    
-    if (!is.null(proveedores_consultados) && nrow(proveedores_consultados()) > 0) {
-      
-      prv_aggregated <- proveedores_consultados() %>%
-        group_by(`Rut Proveedor`, Procedencia) %>% 
-        summarise(`Razón social Proveedor` = `Razón social Proveedor`[1]
-                  ,`Primera OC del período` = as.Date(`Fecha envío OC`, format = "%Y%m%d")[1]
-                  ,`Última OC del período` = max(as.Date(`Fecha envío OC`, format = "%Y%m%d"))
-                  ,`Total de órdenes de compra` = n_distinct(CodigoOC)
-                  ,`Monto total en pesos (millones)` = round(sum(`Monto Bruto CLP`, na.rm = TRUE)/1000000,1),
-                  `Monto total en UF (millones)` = round(sum(`Monto Bruto CLF`, na.rm = TRUE)/1000000,1),
-                  `Monto total en dólares (millones)` = round(sum(`Monto Bruto USD`, na.rm = TRUE)/1000000,1)) %>% 
-        arrange(desc(`Total de órdenes de compra`))
-      
-    }
-    
-    datatable(prv_aggregated)
-  })
   
   # Renderiza resultados de RECLAMOS ======================================== 
   
