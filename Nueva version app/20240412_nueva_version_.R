@@ -12,7 +12,7 @@ library(markdown)
 library(purrr)
 
 # Establece conexiones a los diferentes servidores
-con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")
+
 
 con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
 
@@ -181,6 +181,7 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
 server <- function(input, output, session) {
   
   # CONSULTAS PARA LISTAS DESPLEGABLES DATAWAREHOUSE================================================
+  con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")
   
   regiones_disponibles <- NULL
   procedencias_disponibles <- NULL # Variable para procedencias
@@ -274,6 +275,8 @@ server <- function(input, output, session) {
     
     
   })
+  
+  RODBC::odbcClose(con3)
   
   #Selectores para el panel de TRANSACCIONES ==========================================
   
@@ -480,12 +483,12 @@ server <- function(input, output, session) {
   
   #Botón para consultar TRANSACCIONES ============================================================
   observeEvent(input$consultar_btn, {
-  
-  
     
-  con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")  
     
-      
+    
+    con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")  
+    
+    
     print("Botón 'consultar_btn' presionado en el panel de usuarios")
     # Obtener la región seleccionada  para el panel de transacciones 
     if(input$region == "Todas las regiones") {
@@ -494,8 +497,8 @@ server <- function(input, output, session) {
     } else {
       region_seleccionada <- input$region
     }
-  
-     
+    
+    
     cat("La región seleccionada para el panel de transacciones es:\n"
         ,"===========================================================\n"
         , region_seleccionada
@@ -510,7 +513,7 @@ server <- function(input, output, session) {
       procedencia_seleccionada <- input$procedencia
     }
     
-     
+    
     
     cat("La procedencia seleccionada para el panel de transacciones es:\n"
         ,procedencia_seleccionada
@@ -575,9 +578,9 @@ server <- function(input, output, session) {
         rut_proveedor <- input$rut_prv
       }
     } else {
-        rut_proveedor <- NULL
+      rut_proveedor <- NULL
     }
-
+    
     
     
     if (input$prv_detalle){
@@ -589,7 +592,7 @@ server <- function(input, output, session) {
         entcode_proveedor <- input$entcode_prv
       }  
     } else {
-        entcode_proveedor <- NULL 
+      entcode_proveedor <- NULL 
     }
     
     
@@ -603,7 +606,7 @@ server <- function(input, output, session) {
         tamano_proveedor <- input$prv_tamano
       }  
     } else {
-        tamano_proveedor <- NULL
+      tamano_proveedor <- NULL
     }
     
     
@@ -799,7 +802,7 @@ server <- function(input, output, session) {
       datos_consultados(resultado)
       updateActionButton(session, "consultar", label = "Consultar", icon = icon("search"))
     }
-  
+    
     RODBC::odbcClose(con3)  
     
   })
@@ -815,7 +818,7 @@ server <- function(input, output, session) {
     resultado <- withProgress(message = "Realizando consulta a la base de datos", value = 0, {
       sqlQuery(con3, consulta_())
       
-   
+      
     })
     
     # MODIFICA Columnas de tipo carácter para eliminar los molestos ; ==================================================
@@ -833,9 +836,6 @@ server <- function(input, output, session) {
           ,`Monto neto OC (dólares)` = str_replace(as.character(`Monto neto OC (dólares)`) ,'\\.',',')
           ,`Monto neto OC (pesos)` = str_replace(as.character(`Monto neto OC (pesos)`) ,'\\.',',')
           ,`Monto neto OC (UF)` = str_replace(as.character(`Monto neto OC (UF)`) ,'\\.',',')
-          ,`Impuesto OC (dólares)`= str_replace(as.character(`Impuesto OC (dólares)`) ,'\\.',',')
-          ,`Impuesto OC (pesos)`= str_replace(as.character(`Impuesto OC (pesos)`) ,'\\.',',')
-          ,`Impuesto OC (UF)`= str_replace(as.character(`Impuesto OC (UF)`) ,'\\.',',')
         ) %>%
         arrange(desc(`Monto neto OC (dólares)`))  
     } else {
@@ -870,7 +870,7 @@ server <- function(input, output, session) {
     
   })
   
- 
+  
   
   
   
@@ -937,7 +937,7 @@ server <- function(input, output, session) {
     
     # Query USUARIOS ============================================================
     
-    #,REPLACE(REPLACE(REPLACE(OL.DescripcionItem, CHAR(13), ''), CHAR(10), ''),';',',') AS DescripcionItem
+    
     
     usr_query <- paste0(
       "SELECT  DISTINCT
@@ -1028,7 +1028,7 @@ server <- function(input, output, session) {
     
     usr_consulta_(usr_query)
     
-    
+    con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")
     # Realizar la consulta solo cuando se presiona el botón "Consultar"
     req(input$usr_consultar_btn)  # Espera a que se presione el botón "Consultar"
     
@@ -1065,12 +1065,16 @@ server <- function(input, output, session) {
       compradores_consultados(resultado)
       updateActionButton(session, "consultar", label = "Consultar", icon = icon("search"))
     }
+    
+    RODBC::odbcClose(con3)
   })
   
   
   # Botón para confirMar consulta USUARIOS ==================================================== 
   
   observeEvent(input$usr_confirmar_btn, {
+    
+    con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")
     # Ocultar la ventana emergente
     removeModal()
     
@@ -1082,6 +1086,8 @@ server <- function(input, output, session) {
     updateActionButton(session, "usr_consultar_btn", label = "Consultar", icon = icon("search"))
     
     cat("Realizando consulta a la base de datos.")
+    
+    RODBC::odbcClose(con3)
   })
   
   

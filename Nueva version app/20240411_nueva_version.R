@@ -521,6 +521,8 @@ server <- function(input, output, session) {
         ,institucion_seleccionada
         ,"\n ===========================================================\n")
     
+    
+    
     # Obtener el sector seleccionado por el usuario
     if(input$sector == "Todos los sectores") {
       # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
@@ -528,6 +530,7 @@ server <- function(input, output, session) {
     } else {
       sector_seleccionado <- input$sector
     }
+    
     
     # Obtener el rut seleccionado para el panel de transacciones
     if(input$rut_inst == "") {
