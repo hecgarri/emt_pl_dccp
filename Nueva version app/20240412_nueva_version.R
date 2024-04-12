@@ -30,9 +30,9 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
                  sidebarPanel(
                    dateRangeInput("fecha", "Rango de fechas:",
                                   start = as.Date('2024-02-01'),
-                                    #Sys.Date() %m-% months(14),
+                                  #Sys.Date() %m-% months(14),
                                   end = as.Date('2024-02-02')),
-                                    #Sys.Date() %m-% months(13)),
+                   #Sys.Date() %m-% months(13)),
                    uiOutput("region_select"),
                    uiOutput("institucion_select"), # Nuevo selectInput según institución
                    uiOutput("procedencia_select"), # Nuevo selectInput para procedencia
@@ -73,7 +73,7 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
           # # Agrega aquí el contenido principal de tu aplicación, como la tabla o el gráfico
           
           DTOutput("inst_resultado")
-  
+          
           #,
           #plotlyOutput("combined_plot")
         )
@@ -215,7 +215,7 @@ server <- function(input, output, session) {
   observe({
     # Obtener las procedencias disponibles
     procedencias_disponibles <<- unique(sqlQuery(con3, 
-     "SELECT DISTINCT 
+                                                 "SELECT DISTINCT 
             CASE OC.porisintegrated 
               WHEN 3 THEN 'Compra Agil'
               ELSE (CASE  OC.IDProcedenciaOC
@@ -277,70 +277,70 @@ server <- function(input, output, session) {
   
   #Selectores para el panel de TRANSACCIONES ==========================================
   
-    # Aquí va el selector de regiones para el panel de transacciones
-    output$region_select <- renderUI({
-      selectInput("region", "Selecciona una región:",
-                  choices = c("Todas las regiones", regiones_disponibles$Region),
-                  selected = 'Todas las regiones')
-                    #regiones_disponibles$Region[17])
-    })
-    
-    # Aquí va el selector de procedencia para el panel de transacciones
-    output$procedencia_select <- renderUI({
-      selectInput("procedencia", "Selecciona una procedencia:",
-                  choices = c("Todas las procedencias", procedencias_disponibles$Procedencia),
-                  selected = 'Todas las procedencias')
-                    #procedencias_disponibles$Procedencia[1])
-    })
-    
-    # Aquí va el selector de instituciones para el panel de transacciones 
-    output$institucion_select <- renderUI({
-      selectInput("institucion", "Selecciona una Institución:",
-                  choices = c("Todas las instituciones"
-                              , institucion_disponibles$NombreInstitucion),
-                  selected = "Todas las instituciones")
-    })
-    
-    #Aquí va el selector de sectores para el panel de transacciones 
-    # Nuevo selectInput para sector
-    output$sector_select <- renderUI({
-      selectInput("sector", "Selecciona un sector:",
-                  choices = c("Todos los sectores", sectores_disponibles$Sector),
-                  selected = "Todos los sectores")
-    })  
-    
-    # Mensaje de advertencia cuando se selecciona detalle productos ===============================
-    
-    observeEvent(input$detalle, {
-      opcion_seleccionada <- input$detalle
-      if (opcion_seleccionada) {
-        showModal(
-          modalDialog(
+  # Aquí va el selector de regiones para el panel de transacciones
+  output$region_select <- renderUI({
+    selectInput("region", "Selecciona una región:",
+                choices = c("Todas las regiones", regiones_disponibles$Region),
+                selected = 'Todas las regiones')
+    #regiones_disponibles$Region[17])
+  })
+  
+  # Aquí va el selector de procedencia para el panel de transacciones
+  output$procedencia_select <- renderUI({
+    selectInput("procedencia", "Selecciona una procedencia:",
+                choices = c("Todas las procedencias", procedencias_disponibles$Procedencia),
+                selected = 'Todas las procedencias')
+    #procedencias_disponibles$Procedencia[1])
+  })
+  
+  # Aquí va el selector de instituciones para el panel de transacciones 
+  output$institucion_select <- renderUI({
+    selectInput("institucion", "Selecciona una Institución:",
+                choices = c("Todas las instituciones"
+                            , institucion_disponibles$NombreInstitucion),
+                selected = "Todas las instituciones")
+  })
+  
+  #Aquí va el selector de sectores para el panel de transacciones 
+  # Nuevo selectInput para sector
+  output$sector_select <- renderUI({
+    selectInput("sector", "Selecciona un sector:",
+                choices = c("Todos los sectores", sectores_disponibles$Sector),
+                selected = "Todos los sectores")
+  })  
+  
+  # Mensaje de advertencia cuando se selecciona detalle productos ===============================
+  
+  observeEvent(input$detalle, {
+    opcion_seleccionada <- input$detalle
+    if (opcion_seleccionada) {
+      showModal(
+        modalDialog(
           title = "¡Advertencia!",
           "El detalle por productos puede ralentizar bastante la consulta",
           easyClose = TRUE,
           footer = NULL
         )
-        )
-      }
-    })
+      )
+    }
+  })
   
-    # Mensaje de advertencia cuando se selecciona el detalle de proveedores con respecto a los tamaños ====================
-    # 
-    
-    observeEvent(input$prv_detalle, {
-      opcion_seleccionada <- input$prv_detalle
-      if (opcion_seleccionada) {
-        showModal(
-          modalDialog(
-            title = "¡Advertencia!",
-            "Considere la información sobre tamaños de empresas como provisional. Se están realizando desarrollos en la base de datos",
-            easyClose = TRUE,
-            footer = NULL
-          )
+  # Mensaje de advertencia cuando se selecciona el detalle de proveedores con respecto a los tamaños ====================
+  # 
+  
+  observeEvent(input$prv_detalle, {
+    opcion_seleccionada <- input$prv_detalle
+    if (opcion_seleccionada) {
+      showModal(
+        modalDialog(
+          title = "¡Advertencia!",
+          "Considere la información sobre tamaños de empresas como provisional. Se están realizando desarrollos en la base de datos",
+          easyClose = TRUE,
+          footer = NULL
         )
-      }
-    })
+      )
+    }
+  })
   
   #Selectores para el panel de USUARIOS ====================================== 
   
@@ -420,14 +420,14 @@ server <- function(input, output, session) {
   observeEvent(input$procedencia_select,{
     output$detalle_licitaciones <- renderUI(
       {
-      if (input$procedencia_select == 'Licitación Pública'){
-        selectInput("lic_detalle", "¿Desea detalles sobre las licitaciones?",
-                    choices = c("Sí"=TRUE, "No" = FALSE),
-                    selected = FALSE)  
-      } else {
-        NULL
+        if (input$procedencia_select == 'Licitación Pública'){
+          selectInput("lic_detalle", "¿Desea detalles sobre las licitaciones?",
+                      choices = c("Sí"=TRUE, "No" = FALSE),
+                      selected = FALSE)  
+        } else {
+          NULL
+        }
       }
-    }
     ) 
   }
   ) 
@@ -477,7 +477,7 @@ server <- function(input, output, session) {
   
   reclamos_consultados <- reactiveVal(NULL)
   
-
+  
   #Botón para consultar TRANSACCIONES ============================================================
   observeEvent(input$consultar_btn, {
     
@@ -583,7 +583,7 @@ server <- function(input, output, session) {
         ,REPLACE(REPLACE(REPLACE(REPLACE(OC.NombreOC, 'CHAR(13)', ''), CHAR(10), ''),';',','),'~',' ') AS [NombreOC]
         ,OC.CodigoOC
 		    ,REPLACE(OC.MonedaOC, '', 'Sin Tipo') [Tipo de moneda]"
-      )
+    )
     
     if (input$detalle){
       query <- paste0(query,"
@@ -777,7 +777,7 @@ server <- function(input, output, session) {
     
     # MODIFICA Columnas de tipo carácter para eliminar los molestos ; ==================================================
     
-  
+    
     
     columnas_character <- apply(resultado,2, function(x) class(x) == "character")
     
@@ -788,10 +788,10 @@ server <- function(input, output, session) {
         ,`Monto neto OC (dólares)` = str_replace(as.character(`Monto neto OC (dólares)`) ,'\\.',',')
         ,`Monto neto OC (pesos)` = str_replace(as.character(`Monto neto OC (pesos)`) ,'\\.',',')
         ,`Monto neto OC (UF)` = str_replace(as.character(`Monto neto OC (UF)`) ,'\\.',',')
-        ) %>%
+      ) %>%
       arrange(desc(`Monto neto OC (dólares)`))
-      
-      
+    
+    
     
     
     datos_consultados(resultado_)
@@ -1045,7 +1045,7 @@ server <- function(input, output, session) {
     cat("Realizando consulta a la base de datos.")
   })
   
- 
+  
   
   
   #Botón para consultar PROVEEDORES ========================================================== 
@@ -1488,7 +1488,7 @@ server <- function(input, output, session) {
                   # ,`Monto total en pesos (millones)` = round(sum(`Monto Bruto CLP`, na.rm = TRUE)/1000000,1),
                   # `Monto total en UF (millones)` = round(sum(`Monto Bruto CLF`, na.rm = TRUE)/1000000,1),
                   # `Monto total en dólares (millones)` = round(sum(`Monto Bruto USD`, na.rm = TRUE)/1000000,1)
-                  ) %>% 
+        ) %>% 
         arrange(desc(`Total de órdenes de compra`))
       
     }
