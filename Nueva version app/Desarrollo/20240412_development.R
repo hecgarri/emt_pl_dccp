@@ -34,15 +34,17 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
                                   #end = as.Date('2024-02-02')),
                                   end = Sys.Date() %m-% months(13)),
                    uiOutput("region_select"),
+                   uiOutput("comuna_select"),
+                   uiOutput("sector_select"), #Nuevo selectInput según sector
                    uiOutput("institucion_select"), # Nuevo selectInput según institución
                    uiOutput("procedencia_select"), # Nuevo selectInput para procedencia
                    uiOutput("detalle_licitaciones"), # Selector condicional para obtener detalle sobre las licitaciones
-                   uiOutput("sector_select"), #Nuevo selectInput según sector
                    textInput("rut_inst", "Ingrese RUT de la unidad de compra (opcional):", placeholder = "Ej: 12.345.678-9"),
                    textInput("entcode_inst", "Ingrese entCode de la Institución (opcional):", placeholder = "Ej: 12345"),
                    selectInput("detalle", label = "¿Desea ver el detalle por productos?",
-                               choices = c("Sí" = TRUE, "No" = FALSE),
+                               choices = list("Sí" = TRUE, "No" = FALSE),
                                selected = FALSE),
+                   uiOutput("detalle_rubro"),
                    selectInput("prv_detalle", label = "¿Desea ver el detalle de proveedores?",
                                choices = list("Sí" = TRUE, "No" = FALSE),
                                selected = FALSE),
@@ -187,15 +189,9 @@ server <- function(input, output, session) {
   institucion_disponibles <- NULL # Variable para procedencias
   sectores_disponibles <- NULL # variable para sectores  
   tamanos_disponibles <- NULL # variable para tamaños
+  rubros_disponibles <- NULL
   
-  # Cargar las regiones disponibles al iniciar la aplicación (Datawarehouse) ==============
-  observe({
-    # Ejecutar la consulta SQL para obtener las regiones
-    regiones_disponibles <<- sqlQuery(con3, "SELECT DISTINCT L.Region, L.IDRegion FROM [DM_Transaccional].[dbo].[DimLocalidad] L")
-    # Agregar la opción "Todas las regiones"
-    regiones_disponibles <- rbind(data.frame(Region = "Todas las regiones", IDRegion = NA), regiones_disponibles)
-    
-  })
+  
   
   # Cargar los tamaños disponibles al inicial la aplicación desde el datawarehouse
   # 
@@ -231,11 +227,61 @@ server <- function(input, output, session) {
     #procedencias_disponibles <- rbind(data.frame(Region = "Todas las procedencias", IDRegion = NA), procedencias_disponibles)
   })
   
+  
+  
+  # Cargar las regiones disponibles al iniciar la aplicación (Datawarehouse) ==============
+  observe({
+    # Ejecutar la consulta SQL para obtener las regiones
+    regiones_disponibles <<- sqlQuery(con3, "SELECT DISTINCT L.Region, L.IDRegion FROM [DM_Transaccional].[dbo].[DimLocalidad] L")
+    # Agregar la opción "Todas las regiones"
+    regiones_disponibles <- rbind(data.frame(Region = "Todas las regiones", IDRegion = NA), regiones_disponibles)
+    
+  })
+  
+  # Cargar las regiones disponibles al iniciar la aplicación
+  observe({
+    # Ejecutar la consulta SQL para obtener las regiones
+    sectores_disponibles <<- sqlQuery(con3, "SELECT DISTINCT [IdSector]
+      ,[Sector]
+  FROM [DM_Transaccional].[dbo].[DimSector]")
+    
+    
+  })
+  
+  # Cargar los rubros disponibles al iniciar la aplicación
+  observeEvent(input$detalle,{
+    # Ejecutar la consulta SQL para obtener las regiones
+    rubros_disponibles <<- sqlQuery(con3, "SELECT  [IdRubro]
+      ,[RubroN1] as [Rubro]
+  FROM [DM_Transaccional].[dbo].[DimRubro]")
+    
+    
+  })
+  
+  #Selectores para el panel de TRANSACCIONES ==========================================
+  
+  # Aquí va el selector de regiones para el panel de transacciones
+  output$region_select <- renderUI({
+    selectInput("region", "Selecciona una región:",
+                choices = c("Todas las regiones", regiones_disponibles$Region),
+                selected = 'Todas las regiones')
+    #regiones_disponibles$Region[17])
+  })
+  
+  #Aquí va el selector de sectores para el panel de transacciones 
+  # Nuevo selectInput para sector
+  output$sector_select <- renderUI({
+    selectInput("sector", "Selecciona un sector:",
+                choices = c("Todos los sectores", sectores_disponibles$Sector),
+                selected = "Todos los sectores")
+  }) 
+  
   # Obtener las institucion disponibles al cambiar la región seleccionada (Datawarehouse) ========================
   
-  observe({
+  observeEvent(c(input$region, input$sector),{
     
     region_seleccionada <- input$region
+    sector_seleccionado <- input$sector
     print(class(region_seleccionada))
     print(region_seleccionada)
     
@@ -243,6 +289,13 @@ server <- function(input, output, session) {
       # Asigna un valor predeterminado si input$region es nulo o vacío
       region_seleccionada <- "Todas las regiones"
     }
+    
+    if (is.null(sector_seleccionado) || sector_seleccionado == "") {
+      # Asigna un valor predeterminado si input$sector es nulo o vacío
+      sector_seleccionado <- "Todos los sectores"
+    }
+    
+    
     # Obtener la región seleccionada por el usuario
     if(region_seleccionada == "Todas las regiones") {
       # Si se selecciona "Todas las regiones", no se aplica filtro por región en la consulta SQL
@@ -261,29 +314,87 @@ server <- function(input, output, session) {
                             WHERE L.Region = '", region_seleccionada, "'")
     }
     
+    cat(consulta_instituciones)
+    
     institucion_disponibles <<- sqlQuery(con3, consulta_instituciones)
+    
+    print(institucion_disponibles$NombreInstitucion)
   })
   
+  observeEvent(input$region,
+               {
+                 # Aquí va el selector de instituciones para el panel de transacciones ==================
+                 output$institucion_select <- renderUI({
+                   selectInput("institucion", "Selecciona una Institución:",
+                               choices = c("Todas las instituciones"
+                                           , institucion_disponibles$NombreInstitucion),
+                               selected = "Todas las instituciones")
+                 })
+               }
+  )
   
-  # Cargar las regiones disponibles al iniciar la aplicación
-  observe({
-    # Ejecutar la consulta SQL para obtener las regiones
-    sectores_disponibles <<- sqlQuery(con3, "SELECT DISTINCT [IdSector]
-      ,[Sector]
-  FROM [DM_Transaccional].[dbo].[DimSector]")
+  # Obtener las comunas al cambiar la región seleccionada (Datawarehouse) ========================
+  
+  observeEvent(input$region,{
+    
+    region_seleccionada <- input$region
+    print(class(region_seleccionada))
+    print(region_seleccionada)
+    
+    if (is.null(region_seleccionada) || region_seleccionada == "") {
+      # Asigna un valor predeterminado si input$region es nulo o vacío
+      region_seleccionada <- "Todas las regiones"
+    }
     
     
+    # Obtener la región seleccionada por el usuario
+    if(region_seleccionada == "Todas las regiones") {
+      # Si se selecciona "Todas las regiones", no se aplica filtro por región en la consulta SQL
+      consulta_comunas <- "SELECT DISTINCT 
+                      L.Comuna
+                      ,L.Region
+                      FROM [DM_Transaccional].[dbo].[DimLocalidad] AS L"
+    } else {
+      consulta_comunas <- paste0("SELECT DISTINCT 
+                      L.Comuna 
+                      ,L.Region
+                      FROM [DM_Transaccional].[dbo].[DimLocalidad] AS L
+                            WHERE L.Region = '", region_seleccionada, "'")
+    }
+    
+    cat(consulta_comunas)
+    
+    comunas_disponibles <<- sqlQuery(con3, consulta_comunas)
+    
+    print(comunas_disponibles$Comuna)
   })
   
-  #Selectores para el panel de TRANSACCIONES ==========================================
+  observeEvent(input$region,
+               {
+                 # Aquí va el selector de instituciones para el panel de transacciones ==================
+                 output$comuna_select <- renderUI({
+                   selectInput("comuna", "Selecciona una comuna:",
+                               choices = c("Todas las comunas"
+                                           , comunas_disponibles$Comuna),
+                               selected = "Todas las comunas")
+                 })
+               }
+  )
   
-  # Aquí va el selector de regiones para el panel de transacciones
-  output$region_select <- renderUI({
-    selectInput("region", "Selecciona una región:",
-                choices = c("Todas las regiones", regiones_disponibles$Region),
-                selected = 'Todas las regiones')
-    #regiones_disponibles$Region[17])
-  })
+  observeEvent(input$prv_detalle, {
+    # Actualiza el estado del panel condicional
+    output$prv_detalle_rut <- renderUI({
+      if (input$prv_detalle) {
+        textInput("rut_prv", "Ingrese RUT del proveedor (opcional):", placeholder = "Ej: 12.345.678-9")
+      } else {
+        NULL
+      }
+    })
+  }
+  )
+  
+  
+  
   
   # Aquí va el selector de procedencia para el panel de transacciones
   output$procedencia_select <- renderUI({
@@ -293,37 +404,8 @@ server <- function(input, output, session) {
     #procedencias_disponibles$Procedencia[1])
   })
   
-  # Aquí va el selector de instituciones para el panel de transacciones 
-  output$institucion_select <- renderUI({
-    selectInput("institucion", "Selecciona una Institución:",
-                choices = c("Todas las instituciones"
-                            , institucion_disponibles$NombreInstitucion),
-                selected = "Todas las instituciones")
-  })
   
-  #Aquí va el selector de sectores para el panel de transacciones 
-  # Nuevo selectInput para sector
-  output$sector_select <- renderUI({
-    selectInput("sector", "Selecciona un sector:",
-                choices = c("Todos los sectores", sectores_disponibles$Sector),
-                selected = "Todos los sectores")
-  })  
   
-  # Mensaje de advertencia cuando se selecciona detalle productos ===============================
-  
-  observeEvent(input$detalle, {
-    opcion_seleccionada <- input$detalle
-    if (opcion_seleccionada) {
-      showModal(
-        modalDialog(
-          title = "¡Advertencia!",
-          "El detalle por productos puede ralentizar bastante la consulta",
-          easyClose = TRUE,
-          footer = NULL
-        )
-      )
-    }
-  })
   
   # Mensaje de advertencia cuando se selecciona el detalle de proveedores con respecto a los tamaños ====================
   # 
@@ -414,6 +496,39 @@ server <- function(input, output, session) {
   }
   ) 
   
+  
+  # PANEL DESPLEGABLE PRODUCTOS ==============================
+  
+  
+  observeEvent(input$detalle, {
+    # Actualiza el estado del panel condicional
+    output$detalle_rubro <- renderUI({
+      if (input$detalle) {
+          selectInput("select_rubro", "Selecciona un rubro:",
+                      choices = c("Todos los rubros", rubros_disponibles$Rubro),
+                      selected = "Todos los rubros")
+      } else {
+        NULL
+      }
+    })
+  }
+  )
+  
+  observeEvent(input$detalle, {
+    opcion_seleccionada <- input$detalle
+    if (opcion_seleccionada) {
+      showModal(
+        modalDialog(
+          title = "¡Advertencia!",
+          "El detalle por productos puede ralentizar bastante la consulta",
+          easyClose = TRUE,
+          footer = NULL
+        )
+      )
+    }
+  })
+  
+  
   # PANEL DESLPLEGABLE PROCEDENCIAS ================================
   
   # Aquí va un  selector que pregunta sobre el detalle de las licitaciones
@@ -495,10 +610,19 @@ server <- function(input, output, session) {
       region_seleccionada <- input$region
     }
     
+  
+    
+    # Obtener la región seleccionada por el usuario
+    if(input$comuna == "Todas las comunas") {
+      # Si se selecciona "Todas las regiones", no se aplica filtro por región en la consulta SQL
+      comuna_seleccionada <- NULL
+    } else {
+      comuna_seleccionada <- input$comuna
+    }
     
     cat("La región seleccionada para el panel de transacciones es:\n"
         ,"===========================================================\n"
-        , region_seleccionada
+        , comuna_seleccionada
         ,"\n ===========================================================\n")
     
     
@@ -540,6 +664,24 @@ server <- function(input, output, session) {
     } else {
       sector_seleccionado <- input$sector
     }
+    
+    
+    if (input$detalle){
+      # Obtener el rubro seleccionado por el usuario
+      if(input$select_rubro == "Todos los rubros") {
+        # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+        rubro_seleccionado <- NULL
+      } else {
+        rubro_seleccionado <- input$select_rubro
+      }
+      
+    } else {
+      rubro_seleccionado <- NULL
+    }
+    
+
+    
+    
     
     cat("El sector seleccionado para el panel de transacciones es:\n"
         ,institucion_seleccionada
@@ -607,16 +749,21 @@ server <- function(input, output, session) {
     }
     
     
+    
     cat("El sector seleccionado para el panel de transacciones es:\n"
         ,sector_seleccionado
         ,"\n ===========================================================\n")
     
     # Query TRANSACCIONES ======================================================
+    # 
+    
+    
     
     query <- paste0(
       "SELECT  
         T.Year
         ,L.Region
+        ,L.Comuna
         ,T.Date [Fecha Envío OC]
         ,REPLACE(REPLACE(REPLACE(REPLACE(OC.NombreOC, 'CHAR(13)', ''), CHAR(10), ''),';',','),'~',' ') AS [NombreOC]
         ,OC.CodigoOC
@@ -693,15 +840,22 @@ server <- function(input, output, session) {
         "
     )
     
-    if (lubridate::year(input$fecha[2])<=2023){
+    if (lubridate::year(input$fecha[1]) <= 2023) {
       query <- paste0(query, " AND OC.EsDatoCerrado = 1 ")
-    }  else {
+    } else if (lubridate::year(input$fecha[2]) >= 2024) {
       query <- paste0(query, " AND OC.EsDatoActual = 1 ")
     }
     
     # Agregar condición de región si no es "Todas las regiones"
     if(!is.null(region_seleccionada)) {
       query <- paste0(query, " AND L.Region = '", region_seleccionada, "'")
+    }
+    
+    
+    
+    # Agregar condición de región si no es "Todas las regiones"
+    if(!is.null(comuna_seleccionada)) {
+      query <- paste0(query, " AND L.Comuna = '", comuna_seleccionada, "'")
     }
     
     # Agregar condición de RUT si el campo no es nulo
@@ -737,6 +891,14 @@ server <- function(input, output, session) {
       query <- paste0(query, " AND S.Sector = '", sector_seleccionado, "'")
     }
     
+   
+    
+    # Agregar condición de sector si no es "Todos los sectores"
+    if(!is.null(rubro_seleccionado)) {
+      query <- paste0(query, " AND Ru.RubroN1 = '", rubro_seleccionado, "'")
+    }
+    
+    
     # Agrega filtro de RUT por proveedor 
     # 
     
@@ -761,6 +923,7 @@ server <- function(input, output, session) {
     
     consulta_(query)
     
+   
     
     # Realizar la consulta solo cuando se presiona el botón "Consultar"
     req(input$consultar_btn)  # Espera a que se presione el botón "Consultar"
@@ -1229,7 +1392,6 @@ server <- function(input, output, session) {
       rcl_query <- paste0(rcl_query, " AND I.NombreInstitucion = '", institucion_seleccionada, "'")
     }
     #rowser()
-    
     
     
     # Agregar condición de sector si no es "Todos los sectores"
