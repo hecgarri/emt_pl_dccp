@@ -5,6 +5,7 @@ library(lubridate)
 library(tidyverse)
 library(DT)
 library(shinyjs)
+library(shinycssloaders)
 library(sqldf)
 library(cowplot)
 library(plotly)
@@ -32,13 +33,15 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
                                   #start = as.Date('2024-02-01'),
                                   start = Sys.Date() %m-% months(14),
                                   #end = as.Date('2024-02-02')),
-                                  end = Sys.Date() %m-% months(13)),
+                                  end = Sys.Date() %m-% months(14)),
                    uiOutput("region_select"),
                    uiOutput("comuna_select"),
                    uiOutput("sector_select"), #Nuevo selectInput según sector
                    uiOutput("institucion_select"), # Nuevo selectInput según institución
                    uiOutput("procedencia_select"), # Nuevo selectInput para procedencia
                    uiOutput("detalle_licitaciones"), # Selector condicional para obtener detalle sobre las licitaciones
+                   uiOutput("detalle_convenio"), # Selector condicional para obtener detalle sobre las licitaciones
+                   uiOutput("lista_convenios"), # Selector condicional para obtener detalle sobre los convenios marco
                    textInput("rut_inst", "Ingrese RUT de la unidad de compra (opcional):", placeholder = "Ej: 12.345.678-9"),
                    textInput("entcode_inst", "Ingrese entCode de la Institución (opcional):", placeholder = "Ej: 12345"),
                    selectInput("detalle", label = "¿Desea ver el detalle por productos?",
@@ -189,7 +192,8 @@ server <- function(input, output, session) {
   institucion_disponibles <- NULL # Variable para procedencias
   sectores_disponibles <- NULL # variable para sectores  
   tamanos_disponibles <- NULL # variable para tamaños
-  rubros_disponibles <- NULL
+  rubros_disponibles <- NULL # variable para rubros de productos 
+  convenios_disponibles <- NULL #Variable para convenios marco disponibles 
   
   
   
@@ -256,6 +260,16 @@ server <- function(input, output, session) {
   FROM [DM_Transaccional].[dbo].[DimRubro]")
     
     
+  })
+  
+  # Cargar los convenios Marco Disponibles si el usuario requiere detalle: 
+  # 
+  
+  observeEvent(input$detalle_cm,{
+    convenios_disponibles <<- sqlQuery(con3, "SELECT DISTINCT
+      CM.IdConvenioMarco
+      ,CM.NombreCM
+      FROM DM_Tienda.dbo.DimConvenioMarco as CM")
   })
   
   #Selectores para el panel de TRANSACCIONES ==========================================
@@ -529,16 +543,21 @@ server <- function(input, output, session) {
   })
   
   
-  # PANEL DESLPLEGABLE PROCEDENCIAS ================================
+  
+  
+  # PANEL DESPLEGABLE PROCEDENCIAS ================================
   
   # Aquí va un  selector que pregunta sobre el detalle de las licitaciones
-  observeEvent(input$procedencia_select,{
+  observeEvent(input$procedencia,{
+    
+    procedencia_seleccionada <- input$procedencia %in% c('Licitación Pública', 'Licitación Privada')
+    
     output$detalle_licitaciones <- renderUI(
       {
-        if (input$procedencia_select == 'Licitación Pública'){
+        if (procedencia_seleccionada){
           selectInput("detalle_lic", "¿Desea detalles sobre las licitaciones?",
-                      choices = c("Sí"=TRUE, "No" = FALSE),
-                      selected = TRUE)  
+                      choices = list("Sí"=TRUE, "No" = FALSE),
+                      selected = FALSE)  
         } else {
           NULL
         }
@@ -546,6 +565,39 @@ server <- function(input, output, session) {
     ) 
   }
   ) 
+  
+  # Aquí va un  selector que pregunta sobre el detalle de los convenios marco
+  observeEvent(input$procedencia,{
+    
+    procedencia_seleccionada <- input$procedencia %in% c('Convenio Marco')
+    
+    output$detalle_convenio <- renderUI(
+      {
+        if (procedencia_seleccionada){
+          selectInput("detalle_cm", "¿Desea detalles sobre los Convenios Marco?",
+                      choices = list("Sí"=TRUE, "No" = FALSE),
+                      selected = FALSE)  
+        } else {
+          NULL
+        }
+      }
+    ) 
+  }
+  )
+  
+  observeEvent(input$detalle_cm,{
+    
+    output$lista_convenios <- renderUI({
+      if (input$detalle_cm){
+        selectInput("list_cm", "Selecciona un Convenio Marco",
+                    choices = c("Todos los convenios", convenios_disponibles$NombreCM),
+                    selected = "Todos los convenios")
+      } else {
+        NULL
+      }
+    })
+    
+  })
   
   
   #Selectores para el panel de RECLAMOS ====================================== 
@@ -596,7 +648,7 @@ server <- function(input, output, session) {
   #Botón para consultar TRANSACCIONES ============================================================
   observeEvent(input$consultar_btn, {
     
-    
+    showPageSpinner() # Esto es para mostrar un spinner mientras se realiza la preconsulta rápida =====
     
     con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")  
     
@@ -651,6 +703,8 @@ server <- function(input, output, session) {
       institucion_seleccionada <- input$institucion
     }
     
+    
+    
     cat("La institucion seleccionada para el panel de transacciones es:\n"
         ,institucion_seleccionada
         ,"\n ===========================================================\n")
@@ -664,6 +718,7 @@ server <- function(input, output, session) {
     } else {
       sector_seleccionado <- input$sector
     }
+    
     
     
     if (input$detalle){
@@ -680,7 +735,31 @@ server <- function(input, output, session) {
     }
     
 
+    print(input$detalle_cm)
     
+    
+    
+    if (input$procedencia %in% c('Convenio Marco')){
+      if (input$detalle_cm){
+        
+        # Obtener el rubro seleccionado por el usuario
+        if(input$list_cm == "Todos los convenios") {
+          # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+          convenio_seleccionado <- NULL
+        } else {
+          convenio_seleccionado <- input$list_cm
+        }
+        
+      } else {
+        convenio_seleccionado <- NULL
+      }  
+    } else {
+      convenio_seleccionado <- NULL
+    }
+    
+    
+    
+   
     
     
     cat("El sector seleccionado para el panel de transacciones es:\n"
@@ -696,7 +775,6 @@ server <- function(input, output, session) {
     } else {
       rut_seleccionado <- input$rut_inst
     }
-    
     
     
     # Obtener el rut seleccionado para el panel de transacciones
@@ -770,6 +848,7 @@ server <- function(input, output, session) {
 		    ,REPLACE(OC.MonedaOC, '', 'Sin Tipo') [Tipo de moneda]"
     )
     
+    
     if (input$detalle){
       query <- paste0(query,"
     ,OL.Monto [Monto (neto) producto] 
@@ -777,6 +856,7 @@ server <- function(input, output, session) {
 		,REPLACE(REPLACE(REPLACE(REPLACE(OL.DescripcionItem, CHAR(13), ''), CHAR(10), ''),';',','),'~','') AS DescripcionItem
 		,RU.RubroN1 [Rubro Producto]")
     }
+    
     
     
     query <- paste0(query,"
@@ -801,6 +881,33 @@ server <- function(input, output, session) {
         ,DTP.Tamano [Tamaño Proveedor]")
     }
     
+    
+    
+    if (input$procedencia %in% c('Licitación Pública', 'Licitación Privada')){
+      if (input$detalle_lic){
+        query <- paste0(query,"
+        ,LIC.NumeroAdq
+        ,LIC.NombreAdq
+        ,LIC.Link              
+                      ")
+      }
+    } else {
+      NULL
+    }
+    
+    
+    if (input$procedencia %in% c('Convenio Marco')){
+      if (input$detalle_cm){
+        query <- paste0(query, "
+            ,CM.NombreCM
+            ,CM.NroLicitacionPublica            
+                        ")
+      } else {
+        NULL
+      }
+    }
+
+    
     query <- paste0(query,",(CASE  WHEN OC.porisintegrated=3 THEN 'Compra Agil'
                 ELSE (CASE  OC.IDProcedenciaOC
                       WHEN 703 THEN 'Convenio Marco'
@@ -819,6 +926,8 @@ server <- function(input, output, session) {
                       ")
     }
     
+    
+    
     if (input$prv_detalle){
       query <- paste0(query, "
         INNER JOIN [DM_Transaccional].[dbo].[DimProveedor] as P ON OC.IDSucursal=P.IDSucursal
@@ -828,6 +937,26 @@ server <- function(input, output, session) {
         LEFT JOIN [DM_Transaccional].[dbo].[DimTamanoProveedor] as DTP ON TP.idTamano = DTP.IdTamano
                       ")
     }
+    
+    if (input$procedencia %in% c('Licitación Pública', 'Licitación Privada')){
+      if (input$detalle_lic){
+        query <- paste0(query, "
+        INNER JOIN DM_Transaccional.dbo.THOportunidadesNegocio as LIC ON OC.rbhCode=LIC.rbhCode
+                      ")
+      }
+    } else {
+      NULL
+    }
+    
+    if (input$procedencia %in% c('Convenio Marco')){
+      if (input$detalle_cm){
+        query <- paste0(query, "
+          INNER JOIN DM_Tienda.dbo.THOrdenesCompraLinea as OCM ON OC.porID=OCM.porID
+          INNER JOIN DM_Tienda.dbo.DimConvenioMarco as CM ON OCM.IdConvenioMarco = CM.IdConvenioMarco              
+                        ")
+      }
+    }
+    
     
     
     query <- paste0(query,"
@@ -898,6 +1027,12 @@ server <- function(input, output, session) {
       query <- paste0(query, " AND Ru.RubroN1 = '", rubro_seleccionado, "'")
     }
     
+    
+    
+    # Agregar condición de sector si no es "Todos los sectores"
+    if(!is.null(convenio_seleccionado)) {
+      query <- paste0(query, " AND CM.NombreCM = '", convenio_seleccionado, "'")
+    }
     
     # Agrega filtro de RUT por proveedor 
     # 
@@ -971,6 +1106,8 @@ server <- function(input, output, session) {
     
     RODBC::odbcClose(con3)  
     
+    hidePageSpinner()
+    
   })
   
   # Botón para confirmar consulta TRANSACCIONES ========================================================
@@ -980,11 +1117,12 @@ server <- function(input, output, session) {
     
     con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")
     
+    showPageSpinner()
     # Ejecuta la consulta completa 
     resultado <- withProgress(message = "Realizando consulta a la base de datos", value = 0, {
       sqlQuery(con3, consulta_())
       
-      
+     
     })
     
     # MODIFICA Columnas de tipo carácter para eliminar los molestos ; ==================================================
@@ -1038,7 +1176,7 @@ server <- function(input, output, session) {
     print(tail(resultado_[,c("Monto neto OC (dólares)","Monto neto OC (pesos)","Monto neto OC (UF)")],n = 10))
     
     RODBC::odbcClose(con3)
-    
+    hidePageSpinner() 
     
   })
   
@@ -1304,16 +1442,19 @@ server <- function(input, output, session) {
     
     
     # Obtener la Institución para el panel de transacciones
-    if(input$institucion == "Todas las instituciones") {
+    if(input$rcl_institucion == "Todas las instituciones") {
       # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
       institucion_seleccionada <- NULL
     } else {
       institucion_seleccionada <- input$rcl_institucion
     }
     
+    
     cat("La institucion seleccionada para el panel de transacciones es:\n"
         ,institucion_seleccionada
         ,"\n ===========================================================\n")
+    
+    
     
     # Obtener el sector seleccionado por el usuario
     if(input$rcl_sector == "Todos los sectores") {
