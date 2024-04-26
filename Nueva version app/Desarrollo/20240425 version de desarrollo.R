@@ -1,5 +1,4 @@
 library(shiny)
-library(RODBC)
 library(openxlsx)
 library(lubridate)
 library(tidyverse)
@@ -11,11 +10,97 @@ library(cowplot)
 library(plotly)
 library(markdown)
 library(purrr)
+library(odbc)
+library(DBI)
+library(RODBC)
 
 # Establece conexiones a los diferentes servidores
-con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")
+# Conexión a la base de datos ========================
+
+con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")  
+
+con4 <- dbConnect(odbc(), Driver = "ODBC Driver 17 for SQL Server", Server = "10.34.71.202", UID = "datawarehouse", PWD = "datawarehouse")
 
 con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
+
+con5 <- dbConnect(odbc(), Driver = "ODBC Driver 17 for SQL Server", Server = "10.34.71.146\\AQUILES_CONSULTA",UID = "datawarehouse", PWD = "datawarehouse")
+
+# Define la clase QueryBuilder y sus respectivos métodos =========================
+
+setClass("QueryBuilder", slots = list(
+  fields = "character",
+  from = "character",
+  where = "character",
+  joins = "list",
+  parameters = "list"
+))
+
+# Constructor para la clase QueryBuilder
+QueryBuilder <- function(fields = NULL, from = NULL, where = NULL, joins = NULL, parameters = NULL) {
+  new("QueryBuilder", fields = fields, from = from, where = where, joins = joins, parameters = parameters)
+}
+
+# Método para agregar campos a seleccionar
+setGeneric("add_select_fields", function(query, ...) standardGeneric("add_select_fields"))
+setMethod("add_select_fields", signature("QueryBuilder"), function(query, ...) {
+  query@fields <- c(query@fields, ...)
+  return(query)
+})
+
+# Método para definir la tabla principal
+setGeneric("set_from", function(query, table) standardGeneric("set_from"))
+setMethod("set_from", signature("QueryBuilder"), function(query, table) {
+  query@from <- table
+  return(query)
+})
+
+# Método para agregar condiciones WHERE
+setGeneric("add_where", function(query, condition) standardGeneric("add_where"))
+setMethod("add_where", signature("QueryBuilder"), function(query, condition) {
+  if (is.null(query@where)) {
+    query@where <- condition
+  } else {
+    query@where <- paste(query@where, "AND", condition)
+  }
+  return(query)
+})
+
+# Método para agregar joins
+setGeneric("add_join", function(query, table, condition, type) standardGeneric("add_join"))
+setMethod("add_join", signature("QueryBuilder"), function(query, table, condition, type) {
+  last_index <- length(query@joins)
+  query@joins[[last_index + 1]] <- list(table = table, condition = condition, type = type)
+  return(query)
+})
+
+
+# Método para agregar parámetros
+setGeneric("add_parameter", function(query, name, value) standardGeneric("add_parameter"))
+setMethod("add_parameter", signature("QueryBuilder"), function(query, name, value) {
+  query@parameters[[name]] <- value
+  return(query)
+})
+
+# Método para generar la consulta final
+setGeneric("build", function(query) standardGeneric("build"))
+setMethod("build", signature("QueryBuilder"), function(query) {
+  query_string <- paste("SELECT", paste(query@fields, collapse = ", "), "FROM", query@from)
+  if (length(query@joins) > 0) {
+    for (join in query@joins) {
+      query_string <- paste(query_string, join[["type"]], join[["table"]], "ON", join[["condition"]])
+    }
+  }
+  
+  if (!is.null(query@where)) {
+    query_string <- paste(query_string, "WHERE", query@where)
+  }
+  return(list(query_string = query_string, parameters = query@parameters))
+})
+
+# Explora características de la clase ====================
+
+getClass("QueryBuilder")
+methods(class = "QueryBuilder")
 
 # INTERFAZ DE LA APLICACIÓN  ==================================================================
 # 
@@ -182,7 +267,8 @@ con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
   
 }
 
-# Aquí va el Servidor
+# Aquí va el Servidor =============================================================================
+
 server <- function(input, output, session) {
   
   # CONSULTAS PARA LISTAS DESPLEGABLES DATAWAREHOUSE================================================
@@ -202,7 +288,7 @@ server <- function(input, output, session) {
   
   observe({
     #Ejecutar la consulta SQL para obtener los tamaños 
-    tamanos_disponibles <<- sqlQuery(con3, "SELECT [IdTamano]
+    tamanos_disponibles <<- dbGetQuery(con4, "SELECT [IdTamano]
       ,[Tamano]
       ,[Orden]
   FROM [DM_Transaccional].[dbo].[DimTamanoProveedor]")
@@ -214,7 +300,7 @@ server <- function(input, output, session) {
   # Cargar las procedencias disponibles al iniciar la aplicación
   observe({
     # Obtener las procedencias disponibles
-    procedencias_disponibles <<- unique(sqlQuery(con3, 
+    procedencias_disponibles <<- unique(dbGetQuery(con4, 
                                                  "SELECT DISTINCT 
             CASE OC.porisintegrated 
               WHEN 3 THEN 'Compra Agil'
@@ -236,7 +322,7 @@ server <- function(input, output, session) {
   # Cargar las regiones disponibles al iniciar la aplicación (Datawarehouse) ==============
   observe({
     # Ejecutar la consulta SQL para obtener las regiones
-    regiones_disponibles <<- sqlQuery(con3, "SELECT DISTINCT L.Region, L.IDRegion FROM [DM_Transaccional].[dbo].[DimLocalidad] L")
+    regiones_disponibles <<- dbGetQuery(con4, "SELECT DISTINCT L.Region, L.IDRegion FROM [DM_Transaccional].[dbo].[DimLocalidad] L")
     # Agregar la opción "Todas las regiones"
     regiones_disponibles <- rbind(data.frame(Region = "Todas las regiones", IDRegion = NA), regiones_disponibles)
     
@@ -245,17 +331,15 @@ server <- function(input, output, session) {
   # Cargar las regiones disponibles al iniciar la aplicación
   observe({
     # Ejecutar la consulta SQL para obtener las regiones
-    sectores_disponibles <<- sqlQuery(con3, "SELECT DISTINCT [IdSector]
+    sectores_disponibles <<- dbGetQuery(con4, "SELECT DISTINCT [IdSector]
       ,[Sector]
   FROM [DM_Transaccional].[dbo].[DimSector]")
-    
-    
   })
   
   # Cargar los rubros disponibles al iniciar la aplicación
   observeEvent(input$detalle,{
     # Ejecutar la consulta SQL para obtener las regiones
-    rubros_disponibles <<- sqlQuery(con3, "SELECT  [IdRubro]
+    rubros_disponibles <<- dbGetQuery(con4, "SELECT  [IdRubro]
       ,[RubroN1] as [Rubro]
   FROM [DM_Transaccional].[dbo].[DimRubro]")
     
@@ -266,7 +350,7 @@ server <- function(input, output, session) {
   # 
   
   observeEvent(input$detalle_cm,{
-    convenios_disponibles <<- sqlQuery(con3, "SELECT DISTINCT
+    convenios_disponibles <<- dbGetQuery(con4, "SELECT DISTINCT
       CM.IdConvenioMarco
       ,CM.NombreCM
       FROM DM_Tienda.dbo.DimConvenioMarco as CM")
@@ -332,7 +416,6 @@ server <- function(input, output, session) {
     
     institucion_disponibles <<- sqlQuery(con3, consulta_instituciones)
     
-    print(institucion_disponibles$NombreInstitucion)
   })
   
   observeEvent(input$region,
@@ -378,7 +461,7 @@ server <- function(input, output, session) {
     
     cat(consulta_comunas)
     
-    comunas_disponibles <<- sqlQuery(con3, consulta_comunas)
+    comunas_disponibles <<- dbGetQuery(con4, consulta_comunas)
     
     print(comunas_disponibles$Comuna)
   })
@@ -518,9 +601,9 @@ server <- function(input, output, session) {
     # Actualiza el estado del panel condicional
     output$detalle_rubro <- renderUI({
       if (input$detalle) {
-          selectInput("select_rubro", "Selecciona un rubro:",
-                      choices = c("Todos los rubros", rubros_disponibles$Rubro),
-                      selected = "Todos los rubros")
+        selectInput("select_rubro", "Selecciona un rubro:",
+                    choices = c("Todos los rubros", rubros_disponibles$Rubro),
+                    selected = "Todos los rubros")
       } else {
         NULL
       }
@@ -630,11 +713,14 @@ server <- function(input, output, session) {
   umbral_filas <- 1
   
   # Definir variables reactivas para almacenar las consultas ===============================
-  consulta_ <- reactiveVal(NULL)
+  consulta_string <- reactiveVal(NULL)
+  consulta_parameters <- reactiveVal(NULL)
   
-  usr_consulta_ <- reactiveVal(NULL)
+  usr_consulta_string <- reactiveVal(NULL)
+  usr_consulta_parameters <- reactiveVal(NULL)
   
-  rcl_consulta <- reactiveVal(NULL)
+  rcl_consulta_string <- reactiveVal(NULL)
+  rcl_consulta_parameters <- reactiveVal(NULL)
   
   # Definir variables reactivas para almacenar los datos consultados ===========================
   
@@ -650,8 +736,148 @@ server <- function(input, output, session) {
     
     showPageSpinner() # Esto es para mostrar un spinner mientras se realiza la preconsulta rápida =====
     
-    con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")  
+    # Query TRANSACCIONES ======================================================
     
+    query <- QueryBuilder(
+      fields = c("T.Year"
+                 ,"L.Region","L.Comuna"
+                 , "T.Date [Fecha Envío OC]"
+                 ,"REPLACE(REPLACE(REPLACE(REPLACE(OC.NombreOC, 'CHAR(13)', ''), CHAR(10), ''),';',','),'~',' ') AS [NombreOC]"
+                 ,"OC.CodigoOC"
+                 ,"REPLACE(OC.MonedaOC, '', 'Sin Tipo') [Tipo de moneda]"
+                 ,"OC.MontoUSD [Monto neto OC (dólares)]"
+                 ,"OC.MontoCLP [Monto neto OC (pesos)]"
+                 ,"OC.MontoCLF [Monto neto OC (UF)]"
+                 ,"OC.ImpuestoUSD [Impuesto OC (dólares)]"
+                 ,"OC.ImpuestoCLP [Impuesto OC (pesos)]"
+                 ,"OC.ImpuestoCLF [Impuesto OC (UF)]"
+                 ,"C.RUTUnidaddeCompra [RUT Unidad de Compra]"
+                 ,"UPPER(C.NombreUnidaddeCompra) [Nombre Unidad de Compra]"
+                 ,"I.entCode [entCode (Comprador)]"
+                 ,"REPLACE(REPLACE(REPLACE(UPPER(I.NombreInstitucion), CHAR(13), ''), CHAR(10), ''),';',',') AS [Nombre Institucion]"
+                 ,"S.Sector"
+                 ,"(CASE  WHEN OC.porisintegrated=3 THEN 'Compra Agil'
+               ELSE (CASE  OC.IDProcedenciaOC
+                     WHEN 703 THEN 'Convenio Marco'
+                     WHEN 701 THEN 'Licitación Pública'
+                     WHEN 1401 THEN 'Licitación Pública'
+                     WHEN 702 THEN 'Licitación Privada'
+                     ELSE 'Trato Directo' END)
+               END) [Procedencia]"
+               
+      )
+      ,from = "[DM_Transaccional].[dbo].[THOrdenesCompra] as OC"
+      ,joins = list(
+        list(table ="[DM_Transaccional].[dbo].[DimTiempo] as T", condition = "OC.IDFechaEnvioOC = T.DateKey", type = "INNER JOIN")
+        ,list(table ="[DM_Transaccional].[dbo].[DimComprador] as C",condition ="OC.IDUnidaddeCompra = C.IDUnidaddeCompra" , type = "INNER JOIN")
+        ,list(table = "[DM_Transaccional].[dbo].[DimInstitucion] as I", condition = "C.entCode = I.entCode",type = "INNER JOIN")
+        ,list(table = "[DM_Transaccional].[dbo].[DimLocalidad] as L", condition = "L.IDLocalidad = C.IDLocalidadUnidaddeCompra", type = "INNER JOIN")
+        ,list(table = "[DM_Transaccional].[dbo].[DimSector] as S", condition = "I.IdSector = S.IdSector", type = "INNER JOIN")
+      )
+      ,where = "OC.IDFechaEnvioOC BETWEEN ? AND ?"
+      ,parameters = list(start_date = gsub("-", "", input$fecha[1]), end_date = gsub("-", "", input$fecha[2]))
+      
+    )
+    
+    if (input$detalle){
+      query <- add_select_fields(query
+                                 ,"OL.Monto [Monto (neto) producto]"
+                                 ,"RU.RubroN1 [Rubro Producto]"
+                                 ,"REPLACE(REPLACE(REPLACE(OL.NombreItem, CHAR(13), ''), CHAR(10), ''),';',',') AS [Nombre producto]"
+                                 ,"CAST(OL.DescripcionItem AS TEXT) AS DescripcionItem"
+                                 )
+      
+      query <- add_join(query
+                        , table = '[DM_Transaccional].[dbo].[THOrdenesCompraLinea] as OL'
+                        , condition = 'OC.porID = OL.porID'
+                        , type = 'INNER JOIN')
+      query <- add_join(query
+                        , table = '[DM_Transaccional].[dbo].[DimProducto] as DPR'
+                        , condition = 'OL.IDProducto = DPR.IDProducto'
+                        , type = 'INNER JOIN')
+      query <- add_join(query
+                        ,table = '[DM_Transaccional].[dbo].[DimRubro] as RU'
+                        ,condition = 'DPR.IdRubro = RU.IdRubro'
+                        ,type = 'INNER JOIN')
+    }
+    
+    
+    if (input$prv_detalle){
+      query <- add_select_fields(query, 
+           "REPLACE(REPLACE(REPLACE(UPPER(P.RazonSocialSucursal), CHAR(13), ''), CHAR(10), ''),';',',') AS [Razón social Proveedor]"
+           ,"E.entCode [entCode (Proveedor)]"
+           ,"P.RUTSucursal [Rut Proveedor]"
+           ,"L2.Region [Región Proveedor]"
+           ,"DTP.Tamano [Tamaño Proveedor]"
+      )
+      
+      query <- add_join(query
+                        , table = "[DM_Transaccional].[dbo].[DimProveedor] as P"
+                        , condition = "OC.IDSucursal=P.IDSucursal"
+                        ,type = "INNER JOIN")
+      query <- add_join(query
+                        ,table = "[DM_Transaccional].[dbo].[DimEmpresa] as E"
+                        ,condition = "P.entCode = E.entCode"
+                        , type = "INNER JOIN")
+      query <- add_join(query
+                        ,table = "[DM_Transaccional].[dbo].[DimLocalidad] as L2"
+                        ,condition = "L2.IDLocalidad = P.IDLocalidadSucursal"
+                        ,type = "INNER JOIN")
+      query <- add_join(query
+                        ,table = "[DM_Transaccional].[dbo].[THTamanoProveedor] as TP"
+                        ,condition = "P.entCode=TP.entCode AND TP.AñoTributario = 2022"
+                        ,type = "INNER JOIN")
+      query <- add_join(query
+                        ,table = "[DM_Transaccional].[dbo].[DimTamanoProveedor] as DTP"
+                        ,condition = "TP.idTamano = DTP.IdTamano"
+                        ,type = "LEFT JOIN")
+    }
+    
+    
+    if (any(input$procedencia =='Licitación Pública' | input$procedencia =='Licitación Privada')){
+      if (input$detalle_lic){
+        query <- add_select_fields(query
+                                   ,"LIC.NumeroAdq"
+                                   ,"LIC.NombreAdq"
+                                   ,"LIC.Link"
+        )
+        
+        query <- add_join(query
+                          ,table = "DM_Transaccional.dbo.THOportunidadesNegocio as LIC"
+                          ,condition = "OC.rbhCode=LIC.rbhCode"
+                          ,type = "INNER JOIN")
+      }
+    } else {
+      NULL
+    }
+    
+    if (any(input$procedencia %in% c('Convenio Marco'))){
+      if (input$detalle_cm){
+        query <- add_select_fields(query
+                                   ,"CM.NombreCM"
+                                   ,"CM.NroLicitacionPublica"
+        )
+        
+        query <- add_join(query
+                          ,table = "DM_Tienda.dbo.THOrdenesCompraLinea as OCM"
+                          ,condition = "OC.porID=OCM.porID"
+                          ,type = "INNER JOIN")
+        
+        query <- add_join(query
+                          ,table = "DM_Tienda.dbo.DimConvenioMarco as CM"
+                          ,condition = "OCM.IdConvenioMarco = CM.IdConvenioMarco"
+                          ,type = "INNER JOIN")
+      } else {
+        NULL
+      }
+    }
+    
+    
+    if (lubridate::year(input$fecha[1]) <= 2023) {
+      query <- add_where(query, condition = "OC.EsDatoCerrado = 1")
+    } else if (lubridate::year(input$fecha[2]) >= 2024) {
+      query <- add_where(query, condition = "OC.EsDatoActual = 1")
+    }
     
     
     # Obtener la región seleccionada  para el panel de transacciones 
@@ -662,7 +888,12 @@ server <- function(input, output, session) {
       region_seleccionada <- input$region
     }
     
-  
+    # Agregar condición de región si no es "Todas las regiones"
+    if(!is.null(region_seleccionada)) {
+      query <- add_where(query, condition = "L.Region = ?")
+      
+      query <- add_parameter(query, name = "region_seleccionada", value = region_seleccionada)
+    }
     
     # Obtener la región seleccionada por el usuario
     if(input$comuna == "Todas las comunas") {
@@ -672,11 +903,43 @@ server <- function(input, output, session) {
       comuna_seleccionada <- input$comuna
     }
     
-    cat("La región seleccionada para el panel de transacciones es:\n"
-        ,"===========================================================\n"
-        , comuna_seleccionada
-        ,"\n ===========================================================\n")
+    # Agregar condición de región si no es "Todas las regiones"
+    if(!is.null(comuna_seleccionada)) {
+      query <- add_where(query, condition = "L.Comuna = ?")
+      
+      query <- add_parameter(query, name = "comuna_seleccionada", value = comuna_seleccionada)
+    }
     
+    # Obtener el rut seleccionado para el panel de transacciones
+    if(input$rut_inst == "") {
+      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+      rut_seleccionado <- NULL
+    } else {
+      rut_seleccionado <- input$rut_inst
+    }
+    
+    # Agregar condición de RUT si el campo no es nulo
+    if(!is.null(rut_seleccionado)) {
+      query <- add_where(query, condition = "C.RUTUnidaddeCompra = ?")
+      
+      query <- add_parameter(query, name = "rut_seleccionado", value = rut_seleccionado)
+    }
+    
+    # Obtener el rut seleccionado para el panel de transacciones
+    if(input$entcode_inst == "") {
+      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+      entcode_seleccionado <- NULL
+    } else {
+      entcode_seleccionado <- input$entcode_inst
+    }
+    
+    
+    # Agregar condición de entCode si el campo no es nulo
+    if(!is.null(entcode_seleccionado)) {
+      query <- add_where(query, condition = "I.entCode = ?")
+      
+      query <- add_parameter(query, name = "entcode_seleccionado", value = entcode_seleccionado)
+    }
     
     # Obtener la procedencia seleccionada para el panel de transacciones
     if(input$procedencia == "Todas las procedencias") {
@@ -686,14 +949,18 @@ server <- function(input, output, session) {
       procedencia_seleccionada <- input$procedencia
     }
     
-    
-    
-    cat("La procedencia seleccionada para el panel de transacciones es:\n"
-        ,procedencia_seleccionada
-        ,"\n ===========================================================\n")
-    
-    
-    
+    # Agregar condición de procedencia si no es "Todas las procedencias"
+    if(!is.null(procedencia_seleccionada)) {
+      query <- add_where(query, condition = "(CASE OC.porisintegrated WHEN 3 THEN 'Compra Agil'
+                                              ELSE (CASE  OC.IDProcedenciaOC
+                                              WHEN 703 THEN 'Convenio Marco'
+                                              WHEN 701 THEN 'Licitación Pública'
+                                              WHEN 1401 THEN 'Licitación Pública'
+                                              WHEN 702 THEN 'Licitación Privada'
+                                              ELSE 'Trato Directo' END) END) = ?")
+      
+      query <- add_parameter(query, name = "procedencia_seleccionada", value = procedencia_seleccionada)
+    }
     
     # Obtener la Institución para el panel de transacciones
     if(input$institucion == "Todas las instituciones") {
@@ -703,13 +970,12 @@ server <- function(input, output, session) {
       institucion_seleccionada <- input$institucion
     }
     
-    
-    
-    cat("La institucion seleccionada para el panel de transacciones es:\n"
-        ,institucion_seleccionada
-        ,"\n ===========================================================\n")
-    
-    
+    # Agregar condición de región si no es "Todas las regiones"
+    if(!is.null(institucion_seleccionada)) {
+      query <- add_where(query, "I.NombreInstitucion = ?")
+      
+      query <- add_parameter(query, name = "institucion_seleccionada", value = institucion_seleccionada)
+    }
     
     # Obtener el sector seleccionado por el usuario
     if(input$sector == "Todos los sectores") {
@@ -718,8 +984,13 @@ server <- function(input, output, session) {
     } else {
       sector_seleccionado <- input$sector
     }
-    
-    
+
+    # Agregar condición de sector si no es "Todos los sectores"
+    if(!is.null(sector_seleccionado)) {
+      query <- add_where(query, condition = "S.Sector = ?")
+      
+      query <- add_parameter(query, name = "sector_seleccionado", value = sector_seleccionado)
+    }
     
     if (input$detalle){
       # Obtener el rubro seleccionado por el usuario
@@ -734,10 +1005,13 @@ server <- function(input, output, session) {
       rubro_seleccionado <- NULL
     }
     
-
-    print(input$detalle_cm)
     
-    
+    # Agregar condición de sector si no es "Todos los sectores"
+    if(!is.null(rubro_seleccionado)) {
+      query <- add_where(query, condition = "Ru.RubroN1 = ?")
+      
+      query <- add_parameter(query, name = "rubro_seleccionado", value = rubro_seleccionado)
+    }
     
     if (input$procedencia %in% c('Convenio Marco')){
       if (input$detalle_cm){
@@ -757,34 +1031,12 @@ server <- function(input, output, session) {
       convenio_seleccionado <- NULL
     }
     
-    
-    
-   
-    
-    
-    cat("El sector seleccionado para el panel de transacciones es:\n"
-        ,institucion_seleccionada
-        ,"\n ===========================================================\n")
-    
-    
-    
-    # Obtener el rut seleccionado para el panel de transacciones
-    if(input$rut_inst == "") {
-      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
-      rut_seleccionado <- NULL
-    } else {
-      rut_seleccionado <- input$rut_inst
+    # Agregar condición de sector si no es "Todos los sectores"
+    if(!is.null(convenio_seleccionado)) {
+      query <- add_where(query, condition = "CM.NombreCM = ?")
+      
+      query <- add_parameter(query, name = "convenio_seleccionado", value = convenio_seleccionado)
     }
-    
-    
-    # Obtener el rut seleccionado para el panel de transacciones
-    if(input$entcode_inst == "") {
-      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
-      entcode_seleccionado <- NULL
-    } else {
-      entcode_seleccionado <- input$entcode_inst
-    }
-    
     
     if (input$prv_detalle){
       # Obtener el rut seleccionado para proveedores
@@ -798,7 +1050,13 @@ server <- function(input, output, session) {
       rut_proveedor <- NULL
     }
     
+    # Agrega filtro de RUT por proveedor 
     
+    if (!is.null(rut_proveedor)){
+      query <- add_where(query, "P.RUTSucursal = ?")
+      
+      query <- add_parameter(query, name = "rut_proveedor", value = rut_proveedor)
+    }
     
     if (input$prv_detalle){
       # Obtener el entCode seleccionado para el panel de transacciones
@@ -812,7 +1070,11 @@ server <- function(input, output, session) {
       entcode_proveedor <- NULL 
     }
     
-    
+    if (!is.null(entcode_proveedor)){
+      query <- add_where(query, condition = "E.entCode = ?")
+      
+      query <- add_parameter(query, name = "enctode_proveedor", value = entcode_proveedor)
+    }
     
     if (input$prv_detalle){
       # Obtener el tamaños seleccionado para el panel de transacciones
@@ -827,247 +1089,31 @@ server <- function(input, output, session) {
     }
     
     
-    
-    cat("El sector seleccionado para el panel de transacciones es:\n"
-        ,sector_seleccionado
-        ,"\n ===========================================================\n")
-    
-    # Query TRANSACCIONES ======================================================
-    # 
-    
-    
-    
-    query <- paste0(
-      "SELECT  
-        T.Year
-        ,L.Region
-        ,L.Comuna
-        ,T.Date [Fecha Envío OC]
-        ,REPLACE(REPLACE(REPLACE(REPLACE(OC.NombreOC, 'CHAR(13)', ''), CHAR(10), ''),';',','),'~',' ') AS [NombreOC]
-        ,OC.CodigoOC
-		    ,REPLACE(OC.MonedaOC, '', 'Sin Tipo') [Tipo de moneda]"
-    )
-    
-    
-    if (input$detalle){
-      query <- paste0(query,"
-    ,OL.Monto [Monto (neto) producto] 
-		,REPLACE(REPLACE(REPLACE(OL.NombreItem, CHAR(13), ''), CHAR(10), ''),';',',') AS [Nombre producto]
-		,REPLACE(REPLACE(REPLACE(REPLACE(OL.DescripcionItem, CHAR(13), ''), CHAR(10), ''),';',','),'~','') AS DescripcionItem
-		,RU.RubroN1 [Rubro Producto]")
-    }
-    
-    
-    
-    query <- paste0(query,"
-		    ,OC.MontoUSD [Monto neto OC (dólares)]
-		    ,OC.MontoCLP [Monto neto OC (pesos)]
-		    ,OC.MontoCLF [Monto neto OC (UF)]
-		    ,OC.ImpuestoUSD [Impuesto OC (dólares)]
-		    ,OC.ImpuestoCLP [Impuesto OC (pesos)]
-		    ,OC.ImpuestoCLF [Impuesto OC (UF)]
-        ,C.RUTUnidaddeCompra [RUT Unidad de Compra]
-        ,UPPER(C.NombreUnidaddeCompra) [Nombre Unidad de Compra]
-		    ,I.entCode [entCode (Comprador)]
-        ,REPLACE(REPLACE(REPLACE(UPPER(I.NombreInstitucion), CHAR(13), ''), CHAR(10), ''),';',',') AS [Nombre Institucion]
-        ,S.Sector")
-    
-    if (input$prv_detalle){
-      query <- paste0(query,"
-        ,REPLACE(REPLACE(REPLACE(UPPER(P.RazonSocialSucursal), CHAR(13), ''), CHAR(10), ''),';',',') AS [Razón social Proveedor]
-        ,E.entCode [entCode (Proveedor)]
-        ,P.RUTSucursal [Rut Proveedor]
-        ,L2.Region [Región Proveedor]
-        ,DTP.Tamano [Tamaño Proveedor]")
-    }
-    
-    
-    
-    if (input$procedencia %in% c('Licitación Pública', 'Licitación Privada')){
-      if (input$detalle_lic){
-        query <- paste0(query,"
-        ,LIC.NumeroAdq
-        ,LIC.NombreAdq
-        ,LIC.Link              
-                      ")
-      }
-    } else {
-      NULL
-    }
-    
-    
-    if (input$procedencia %in% c('Convenio Marco')){
-      if (input$detalle_cm){
-        query <- paste0(query, "
-            ,CM.NombreCM
-            ,CM.NroLicitacionPublica            
-                        ")
-      } else {
-        NULL
-      }
-    }
-
-    
-    query <- paste0(query,",(CASE  WHEN OC.porisintegrated=3 THEN 'Compra Agil'
-                ELSE (CASE  OC.IDProcedenciaOC
-                      WHEN 703 THEN 'Convenio Marco'
-                      WHEN 701 THEN 'Licitación Pública'
-                      WHEN 1401 THEN 'Licitación Pública'
-                      WHEN 702 THEN 'Licitación Privada'
-                      ELSE 'Trato Directo' END)
-        END) [Procedencia]
-      FROM [DM_Transaccional].[dbo].[THOrdenesCompra] as OC")
-    
-    if (input$detalle){
-      query <- paste0(query, "
-        INNER JOIN [DM_Transaccional].[dbo].[THOrdenesCompraLinea] as OL  ON OC.porID = OL.porID
-        INNER JOIN [DM_Transaccional].[dbo].[DimProducto] as DPR ON  OL.IDProducto = DPR.IDProducto
-        INNER JOIN [DM_Transaccional].[dbo].[DimRubro] as RU ON DPR.IdRubro = RU.IdRubro
-                      ")
-    }
-    
-    
-    
-    if (input$prv_detalle){
-      query <- paste0(query, "
-        INNER JOIN [DM_Transaccional].[dbo].[DimProveedor] as P ON OC.IDSucursal=P.IDSucursal
-        INNER JOIN [DM_Transaccional].[dbo].[DimEmpresa] as E ON P.entCode = E.entCode 
-        INNER JOIN [DM_Transaccional].[dbo].[DimLocalidad] as L2 ON L2.IDLocalidad = P.IDLocalidadSucursal
-        LEFT JOIN [DM_Transaccional].[dbo].[THTamanoProveedor] as TP ON P.entCode=TP.entCode AND TP.AñoTributario = 2022
-        LEFT JOIN [DM_Transaccional].[dbo].[DimTamanoProveedor] as DTP ON TP.idTamano = DTP.IdTamano
-                      ")
-    }
-    
-    if (input$procedencia %in% c('Licitación Pública', 'Licitación Privada')){
-      if (input$detalle_lic){
-        query <- paste0(query, "
-        INNER JOIN DM_Transaccional.dbo.THOportunidadesNegocio as LIC ON OC.rbhCode=LIC.rbhCode
-                      ")
-      }
-    } else {
-      NULL
-    }
-    
-    if (input$procedencia %in% c('Convenio Marco')){
-      if (input$detalle_cm){
-        query <- paste0(query, "
-          INNER JOIN DM_Tienda.dbo.THOrdenesCompraLinea as OCM ON OC.porID=OCM.porID
-          INNER JOIN DM_Tienda.dbo.DimConvenioMarco as CM ON OCM.IdConvenioMarco = CM.IdConvenioMarco              
-                        ")
-      }
-    }
-    
-    
-    
-    query <- paste0(query,"
-        INNER JOIN [DM_Transaccional].[dbo].[DimTiempo] as T ON OC.IDFechaEnvioOC = T.DateKey
-        INNER JOIN [DM_Transaccional].[dbo].[DimComprador] as C ON OC.IDUnidaddeCompra = C.IDUnidaddeCompra
-        INNER JOIN [DM_Transaccional].[dbo].[DimInstitucion] as I ON C.entCode = I.entCode
-        INNER JOIN [DM_Transaccional].[dbo].[DimLocalidad] as L ON L.IDLocalidad = C.IDLocalidadUnidaddeCompra
-        INNER JOIN [DM_Transaccional].[dbo].[DimSector] as S ON I.IdSector = S.IdSector
-      WHERE  OC.IDFechaEnvioOC BETWEEN '", gsub("-", "", input$fecha[1]), "' AND '", gsub("-", "", input$fecha[2]), "'
-        "
-    )
-    
-    if (lubridate::year(input$fecha[1]) <= 2023) {
-      query <- paste0(query, " AND OC.EsDatoCerrado = 1 ")
-    } else if (lubridate::year(input$fecha[2]) >= 2024) {
-      query <- paste0(query, " AND OC.EsDatoActual = 1 ")
-    }
-    
-    # Agregar condición de región si no es "Todas las regiones"
-    if(!is.null(region_seleccionada)) {
-      query <- paste0(query, " AND L.Region = '", region_seleccionada, "'")
-    }
-    
-    
-    
-    # Agregar condición de región si no es "Todas las regiones"
-    if(!is.null(comuna_seleccionada)) {
-      query <- paste0(query, " AND L.Comuna = '", comuna_seleccionada, "'")
-    }
-    
-    # Agregar condición de RUT si el campo no es nulo
-    if(!is.null(rut_seleccionado)) {
-      query <- paste0(query, " AND C.RUTUnidaddeCompra = '", rut_seleccionado, "'")
-    }
-    
-    # Agregar condición de entCode si el campo no es nulo
-    if(!is.null(entcode_seleccionado)) {
-      query <- paste0(query, " AND I.entCode = '", entcode_seleccionado, "'")
-    }
-    
-    # Agregar condición de procedencia si no es "Todas las procedencias"
-    if(!is.null(procedencia_seleccionada)) {
-      query <- paste0(query, " AND (CASE OC.porisintegrated WHEN 3 THEN 'Compra Agil'
-                                              ELSE (CASE  OC.IDProcedenciaOC
-                                              WHEN 703 THEN 'Convenio Marco'
-                                              WHEN 701 THEN 'Licitación Pública'
-                                              WHEN 1401 THEN 'Licitación Pública'
-                                              WHEN 702 THEN 'Licitación Privada'
-                                              ELSE 'Trato Directo' END) END) = '", procedencia_seleccionada, "'")
-    }
-    
-    # Agregar condición de región si no es "Todas las regiones"
-    if(!is.null(institucion_seleccionada)) {
-      query <- paste0(query, " AND I.NombreInstitucion = '", institucion_seleccionada, "'")
-    }
-    #rowser()
-    
-    
-    # Agregar condición de sector si no es "Todos los sectores"
-    if(!is.null(sector_seleccionado)) {
-      query <- paste0(query, " AND S.Sector = '", sector_seleccionado, "'")
-    }
-    
-   
-    
-    # Agregar condición de sector si no es "Todos los sectores"
-    if(!is.null(rubro_seleccionado)) {
-      query <- paste0(query, " AND Ru.RubroN1 = '", rubro_seleccionado, "'")
-    }
-    
-    
-    
-    # Agregar condición de sector si no es "Todos los sectores"
-    if(!is.null(convenio_seleccionado)) {
-      query <- paste0(query, " AND CM.NombreCM = '", convenio_seleccionado, "'")
-    }
-    
-    # Agrega filtro de RUT por proveedor 
-    # 
-    
-    if (!is.null(rut_proveedor)){
-      query <- paste0(query, " AND P.RUTSucursal = '",rut_proveedor ,"'")
-    }
-    
-    if (!is.null(entcode_proveedor)){
-      query <- paste0(query, "AND E.entCode = '",entcode_proveedor ,"'")
-    }
-    
     if (!is.null(tamano_proveedor)){
-      query <- paste0(query, "AND DTP.Tamano = '",tamano_proveedor ,"'")
+      query <- add_where(query, condition = "DTP.Tamano = ?")
+      
+      query <- add_parameter(query, name = "tamano_proveedor", value = tamano_proveedor)
     }
     
-    cat("La Query es la siguiente:"
-        ,"\n ==============================================================\n\n"
-        ,query
-        ,"\n ==============================================================\n\n"
-        ,"\n ==============================================================\n\n"
-        ,"\n ==============================================================\n\n")
+    #cat(str(query))
+    print(query@fields)
     
-    consulta_(query)
+    final_query <- build(query)
     
-   
+    consulta_string(final_query$query_string)
+    
+    consulta_parameters(final_query$parameters)
     
     # Realizar la consulta solo cuando se presiona el botón "Consultar"
     req(input$consultar_btn)  # Espera a que se presione el botón "Consultar"
     
-    
+    con4 <- dbConnect(odbc(), Driver = "ODBC Driver 17 for SQL Server", Server = "10.34.71.202", UID = "datawarehouse", PWD = "datawarehouse")
     
     # Realizar una preconsulta rápida para obtener el número de filas
     num_filas <- withProgress(message = "Realizando preconsulta rápida...", value = 0, {
-      sqlQuery(con3, paste("SELECT COUNT(*) AS NumFilas FROM (", query, ") AS SubConsulta"))
+      dbGetQuery(con4
+                 , paste("SELECT COUNT(*) AS NumFilas FROM (", final_query$query_string, ") AS SubConsulta")
+                 ,params = final_query$parameters)
     })
     
     # Obtener el número de filas desde el resultado de la preconsulta
@@ -1098,13 +1144,13 @@ server <- function(input, output, session) {
     } else {
       # Si el número de filas es mayor que cero pero menor o igual al umbral, ejecutar la consulta completa y mostrar los datos
       resultado <- withProgress(message = "Realizando consulta a la base de datos", value = 0, {
-        sqlQuery(con3, consulta_())
+        dbGetQuery(con4, consulta_string(), params = consulta_parameters())
       })
       datos_consultados(resultado)
       updateActionButton(session, "consultar", label = "Consultar", icon = icon("search"))
     }
     
-    RODBC::odbcClose(con3)  
+    
     
     hidePageSpinner()
     
@@ -1115,20 +1161,21 @@ server <- function(input, output, session) {
     # Ocultar la ventana emergente
     removeModal()
     
-    con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")
+    print(consulta_string())
+    
+    print(consulta_parameters())
+    
+    browser()
     
     showPageSpinner()
     # Ejecuta la consulta completa 
     resultado <- withProgress(message = "Realizando consulta a la base de datos", value = 0, {
-      sqlQuery(con3, consulta_())
+      dbGetQuery(con4, consulta_string(), params = consulta_parameters())
       
-     
+      
     })
     
     # MODIFICA Columnas de tipo carácter para eliminar los molestos ; ==================================================
-    
-    #print(names(resultado))
-    
     
     if (input$detalle){
       columnas_character <- apply(resultado,2, function(x) class(x) == "character")
@@ -1175,18 +1222,59 @@ server <- function(input, output, session) {
     print(head(resultado_[,c("Monto neto OC (dólares)","Monto neto OC (pesos)","Monto neto OC (UF)")],n = 30))
     print(tail(resultado_[,c("Monto neto OC (dólares)","Monto neto OC (pesos)","Monto neto OC (UF)")],n = 10))
     
-    RODBC::odbcClose(con3)
+    dbDisconnect(con4)  
     hidePageSpinner() 
     
   })
   
   
-  
-  
-  
   #Botón para consultar USUARIOS ====================================================================
   observeEvent(input$usr_consultar_btn, {
     
+    showPageSpinner()
+    # Query USUARIOS ============================================================
+    
+    usr_query <- QueryBuilder(
+      fields = c(
+        "T.Year"
+        ,"U.Nombres+' '+U.Apellidos [Nombre completo]"
+        ,"U.RUT [Rut usuario]"
+        ,"U.Sexo [Sexo usuario]"
+        ,"U.eMail"
+        ,"C.RUTUnidaddeCompra [Rut unidad de compra]"
+        ,"C.RazonSocialUnidaddeCompra [Razon social unidad de compra]"
+        ,"I.NombreInstitucion [Institucion]"
+        ,"L.Region"
+        ,"S.Sector [Sector Institucion]"
+        ,"CASE OC.porisintegrated 
+            WHEN 3 THEN 'Compra Agil'
+            ELSE (CASE  OC.IDProcedenciaOC
+                    WHEN 703 THEN 'Convenio Marco'
+                    WHEN 701 THEN 'Licitación Pública'
+                    WHEN 1401 THEN 'Licitación Pública'
+                    WHEN 702 THEN 'Licitación Privada'
+                    ELSE 'Trato Directo' 
+                END)
+        END AS Procedencia"
+        ,"T.Date [Fecha envío OC]"
+        ,"OC.CodigoOC"
+        ,"OC.MontoCLP+OC.ImpuestoCLP [Monto Bruto CLP]"
+        ,"OC.MontoCLF+OC.ImpuestoCLF [Monto Bruto CLF]"
+        ,"OC.MontoUSD+OC.ImpuestoUSD [Monto Bruto USD]"
+      )
+    ,from = "[DM_Transaccional].[dbo].[THOrdenesCompra] as OC"
+    ,joins = list(
+      list(table ="[DM_Transaccional].[dbo].DimUsuario as U", condition = "OC.usrID = U.usrID", type = "LEFT JOIN")
+      ,list(table ="[DM_Transaccional].[dbo].[DimTiempo] as T", condition ="OC.IDFechaEnvioOC = T.DateKey", type = "INNER JOIN")
+      ,list(table ="[DM_Transaccional].[dbo].[DimComprador] as C", condition ="OC.IDUnidaddeCompra = C.IDUnidaddeCompra", type ="LEFT JOIN")
+      ,list(table = "[DM_Transaccional].[dbo].[DimLocalidad] as L", condition = "L.IDLocalidad = C.IDLocalidadUnidaddeCompra", type = "LEFT JOIN")
+      ,list(table = "[DM_Transaccional].[dbo].[DimInstitucion] as I", condition = "C.entCode = I.entCode", type = "LEFT JOIN")
+      ,list(table = "[DM_Transaccional].[dbo].[DimSector] as S", condition = "I.IdSector = S.IdSector", type = "LEFT JOIN")
+    )
+    , where = "OC.IDFechaEnvioOC BETWEEN ? AND ?"
+    ,parameters = list(start_date = gsub("-","", input$fecha[1])
+                       ,end_date = gsub("-","", input$fecha[2]))
+    ) 
     
     # Obtener la región seleccionada por el usuario
     if(input$usr_region == "Todas las regiones") {
@@ -1196,41 +1284,11 @@ server <- function(input, output, session) {
       region_seleccionada <- input$usr_region
     }
     
-    cat("\n la región seleccionada para la consulta de usuarios es: \n"
-        ,region_seleccionada
-        ," ==============================================================\n\n\n")
-    
-    # Obtener la procedencia seleccionada por el usuario
-    if(input$usr_procedencia == "Todas las procedencias") {
-      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
-      procedencia_seleccionada <- NULL
-    } else {
-      procedencia_seleccionada <- input$usr_procedencia
-    }
-    
-    cat("\n la procedencia_seleccionada para la consulta de usuarios es: \n"
-        ,procedencia_seleccionada
-        ," ==============================================================\n\n\n")
-    
-    
-    # Obtener la Institución seleccionada por el usuario
-    if(input$usr_institucion == "Todas las instituciones") {
-      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
-      institucion_seleccionada <- NULL
-    } else {
-      institucion_seleccionada <- input$usr_institucion
-    }
-    
-    cat("\n la institución seleccioada para la consulta de usuarios es: \n"
-        ,institucion_seleccionada
-        ," ==============================================================\n\n\n")
-    
-    # Obtener el sector seleccionado para el panel de usuarios
-    if(input$usr_sector == "Todos los sectores") {
-      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
-      sector_seleccionado <- NULL
-    } else {
-      sector_seleccionado <- input$usr_sector
+    # Agregar condición de región si no es "Todas las regiones"
+    if(!is.null(region_seleccionada)) {
+      usr_query <- add_where(usr_query, condition = " L.Region = ?")
+      
+      usr_query <- add_parameter(usr_query, name = "region_seleccionada", value = region_seleccionada)
     }
     
     # Obtener el rut seleccionado para el panel de usuarios
@@ -1241,102 +1299,72 @@ server <- function(input, output, session) {
       rut_seleccionado <- input$rut_usr
     }
     
-    cat("\n El sector seleccionado para la consulta de usuarios es: \n"
-        ,sector_seleccionado
-        ," ==============================================================\n\n\n")
-    
-    # Query USUARIOS ============================================================
-    
-    #,REPLACE(REPLACE(REPLACE(OL.DescripcionItem, CHAR(13), ''), CHAR(10), ''),';',',') AS DescripcionItem
-    
-    usr_query <- paste0(
-      "SELECT  DISTINCT
-        T.Year
-		,U.Nombres+' '+U.Apellidos [Nombre completo]
-		,U.RUT [Rut usuario]
-		,U.Sexo [Sexo usuario]
-		,U.eMail
-		,C.RUTUnidaddeCompra [Rut unidad de compra]
-		,C.RazonSocialUnidaddeCompra [Razon social unidad de compra]
-		,I.NombreInstitucion [Institucion]
-		,L.Region
-		,S.Sector [Sector Institucion]
-		,CASE OC.porisintegrated 
-            WHEN 3 THEN 'Compra Agil'
-            ELSE (CASE  OC.IDProcedenciaOC
-                    WHEN 703 THEN 'Convenio Marco'
-                    WHEN 701 THEN 'Licitación Pública'
-                    WHEN 1401 THEN 'Licitación Pública'
-                    WHEN 702 THEN 'Licitación Privada'
-                    ELSE 'Trato Directo' 
-                END)
-        END AS Procedencia
-		,T.Date [Fecha envío OC]
-		,OC.CodigoOC
-		,OC.MontoCLP+OC.ImpuestoCLP [Monto Bruto CLP]
-		,OC.MontoCLF+OC.ImpuestoCLF [Monto Bruto CLF]
-		,OC.MontoUSD+OC.ImpuestoUSD [Monto Bruto USD]
-		--------------------------------------------------------------------------------------------------------------------------------------------------
-		--------------------------------------------------------------------------------------------------------------------------------------------------
-        FROM [DM_Transaccional].[dbo].[THOrdenesCompra] as OC 
-        LEFT JOIN [DM_Transaccional].[dbo].DimUsuario as U ON OC.usrID = U.usrID 
-    		INNER JOIN [DM_Transaccional].[dbo].[DimTiempo] as T ON OC.IDFechaEnvioOC = T.DateKey
-        LEFT JOIN [DM_Transaccional].[dbo].[DimComprador] as C ON OC. IDUnidaddeCompra = C.IDUnidaddeCompra
-        LEFT JOIN [DM_Transaccional].[dbo].[DimLocalidad] as L ON L.IDLocalidad = C.IDLocalidadUnidaddeCompra
-        LEFT JOIN [DM_Transaccional].[dbo].[DimInstitucion] as I ON C.entCode = I.entCode
-        LEFT JOIN [DM_Transaccional].[dbo].[DimSector] as S ON I.IdSector = S.IdSector
-		--------------------------------------------------------------------------------------------------------------------------------------------------
-		--------------------------------------------------------------------------------------------------------------------------------------------------
-      WHERE  OC.IDFechaEnvioOC BETWEEN '", gsub("-", "", input$usr_fecha[1]), "' AND '", gsub("-", "", input$usr_fecha[2]), "'
-       AND OC.IDEstadoOC IN  (4,5,6,7,12)"
-    )
-    
-    # Agregar condición de región si no es "Todas las regiones"
-    if(!is.null(region_seleccionada)) {
-      usr_query <- paste0(usr_query, " AND L.Region = '", region_seleccionada, "'")
-    }
-    
     # Agregar condición de RUT si el campo no es nulo
     if(!is.null(rut_seleccionado)) {
-      usr_query <- paste0(usr_query, " AND U.Rut = '", rut_seleccionado, "'")
+      usr_query <- add_where(usr_query, "U.Rut = ?")
+      
+      usr_query <- add_parameter(usr_query, name = "rut_seleccionado", value = rut_seleccionado)
     }
     
+    # Obtener la procedencia seleccionada por el usuario
+    if(input$usr_procedencia == "Todas las procedencias") {
+      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+      procedencia_seleccionada <- NULL
+    } else {
+      procedencia_seleccionada <- input$usr_procedencia
+    }
     
     # Agregar condición de procedencia si no es "Todas las procedencias"
     if(!is.null(procedencia_seleccionada)) {
-      usr_query <- paste0(usr_query, " AND (CASE OC.porisintegrated WHEN 3 THEN 'Compra Agil'
+      usr_query <- add_where(usr_query, condition = "(CASE OC.porisintegrated WHEN 3 THEN 'Compra Agil'
                                               ELSE (CASE  OC.IDProcedenciaOC
                                               WHEN 703 THEN 'Convenio Marco'
                                               WHEN 701 THEN 'Licitación Pública'
                                               WHEN 1401 THEN 'Licitación Pública'
                                               WHEN 702 THEN 'Licitación Privada'
-                                              ELSE 'Trato Directo' END) END) = '", procedencia_seleccionada, "'")
+                                              ELSE 'Trato Directo' END) END) = ?")
+      
+      usr_query <- add_parameter(usr_query, name = "procedencia_seleccionada", value = procedencia_seleccionada)
+    }
+    
+    # Obtener la Institución seleccionada por el usuario
+    if(input$usr_institucion == "Todas las instituciones") {
+      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+      institucion_seleccionada <- NULL
+    } else {
+      institucion_seleccionada <- input$usr_institucion
     }
     
     # Agregar condición de institución si no es "Todas las instituciones"
     if(!is.null(institucion_seleccionada)) {
-      usr_query <- paste0(usr_query, " AND I.NombreInstitucion = '", institucion_seleccionada, "'")
+      usr_query <- add_where(usr_query, condition ="I.NombreInstitucion = ?")
+      
+      usr_query <- add_parameter(usr_query, name = "institucion_seleccionada", value = institucion_seleccionada)
     }
-    #rowser()
     
     
+    # Obtener el sector seleccionado para el panel de usuarios
+    if(input$usr_sector == "Todos los sectores") {
+      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+      sector_seleccionado <- NULL
+    } else {
+      sector_seleccionado <- input$usr_sector
+    }
     
     # Agregar condición de sector si no es "Todos los sectores"
     if(!is.null(sector_seleccionado)) {
-      usr_query <- paste0(usr_query, " AND S.Sector = '", sector_seleccionado, "'")
+      usr_query <- add_where(usr_query, condition = " AND S.Sector = ?")
+      
+      usr_query <- add_parameter(usr_query, name = "sector_seleccionado", value = sector_seleccionado)
     }
     
-    cat("El rut ingresado es:\n\n",
-        input$rut_usr)
+    print(str(usr_query))
+
+    final_usr_query <- build(usr_query)
     
-    cat("La Query es la siguiente:"
-        ,"\n ==============================================================\n\n"
-        ,usr_query
-        ,"\n ==============================================================\n\n"
-        ,"\n ==============================================================\n\n"
-        ,"\n ==============================================================\n\n")
+    usr_consulta_string(final_usr_query$query_string)
     
-    usr_consulta_(usr_query)
+    usr_consulta_parameters(final_usr_query$parameters)
     
     
     # Realizar la consulta solo cuando se presiona el botón "Consultar"
@@ -1346,7 +1374,9 @@ server <- function(input, output, session) {
     
     # Realizar una preconsulta rápida para obtener el número de filas
     num_filas <- withProgress(message = "Realizando preconsulta rápida...", value = 0, {
-      sqlQuery(con3, paste("SELECT COUNT(*) AS NumFilas FROM (", usr_query, ") AS SubConsulta"))
+      dbGetQuery(con4
+                 , paste("SELECT COUNT(*) AS NumFilas FROM (", final_usr_query$query_string, ") AS SubConsulta")
+                 , params = final_usr_query$parameters)
     })
     
     # Obtener el número de filas desde el resultado de la preconsulta
@@ -1370,11 +1400,15 @@ server <- function(input, output, session) {
     } else {
       # Si el número de filas es mayor que cero pero menor o igual al umbral, ejecutar la consulta completa y mostrar los datos
       resultado <- withProgress(message = "Realizando consulta a la base de datos", value = 0, {
-        sqlQuery(con3, usr_consulta_())
+        dbGetQuery(con4
+                 , usr_consulta_string(), params = usr_consulta_parameters())
       })
       compradores_consultados(resultado)
       updateActionButton(session, "consultar", label = "Consultar", icon = icon("search"))
     }
+    
+    hidePageSpinner()
+    
   })
   
   
@@ -1384,48 +1418,71 @@ server <- function(input, output, session) {
     # Ocultar la ventana emergente
     removeModal()
     
+    showPageSpinner()
+    
     # Ejecuta la consulta completa 
     resultado <- withProgress(message = "Realizando consulta a la base de datos", value = 0, {
-      sqlQuery(con3, usr_consulta_())
+      dbGetQuery(con4
+                 , usr_consulta_string(), params = usr_consulta_parameters())
     })
     compradores_consultados(resultado)
     updateActionButton(session, "usr_consultar_btn", label = "Consultar", icon = icon("search"))
     
-    cat("Realizando consulta a la base de datos.")
+    hidePageSpinner()
+    dbDisconnect(con4) 
   })
   
   
-  # VALIDADOR RUT OO.PP. para RECLAMOS =======================================
-  
-  observeEvent(input$rcl_validate_button, {
-    rut <- input$rut_rcl
-    # Expresión regular para validar RUT en formato 00.000.000-0 o 00.000.000-9
-    rut_regex <- "^\\d{1,2}\\.\\d{1,3}\\.\\d{1,3}-[0-9kK]{1}$"
-    
-    if (nchar(trimws(rut)) > 0) {
-      if (grepl(rut_regex, rut)) {
-        output$rcl_validation_result <- renderPrint({
-          paste("El RUT", rut, "es válido.")
-        })
-      } else {
-        output$rcl_validation_result <- renderPrint({
-          paste("El RUT", rut, "no tiene el formato correcto.")
-        })
-      }
-    } else {
-      # Si no se ingresa ningún valor, establece input$rut_input como NULL
-      input$rut_rcl <- NULL
-      output$rcl_validation_result <- renderPrint({
-        NULL
-      })
-      # Invalidar la salida después de 5 segundos
-      invalidateLater(5000, session)
-    }
-  })
   
   #Botón para consultar RECLAMOS ============================================================
   observeEvent(input$rcl_consultar_btn, {
     
+    showPageSpinner()
+    
+    # Query RECLAMOS ======================================================
+    
+    rcl_query <- QueryBuilder(
+      fields = c(
+        "[idReclamo]"
+        ,"er.NombreEstado"
+        ,"REPLACE(REPLACE(REPLACE(mr.NombreMotivoReclamo, CHAR(13), ''), CHAR(10), ''),';',',') AS NombreMotivoReclamo"
+        ,"tr.NombreTipoReclamo"
+        ,"cast([FechaIngresoReclamo] as date) FechaIngresoReclamo"
+        ,"[NombreReclamante]" 
+        ,"[RutReclamante]"
+        ,"REPLACE(REPLACE(REPLACE([DetalleReclamo], CHAR(13), ''), CHAR(10), ''),';',',') AS DetalleReclamo"
+        ,"[NombreOOPP]"
+        ,"C.[entCode] [entCode OOPP]"
+        ,"C.[RazonSocialUnidaddeCompra]"
+        ,"C.[RUTUnidaddeCompra]"
+        ,"S.Sector"
+        ,"I.NombreInstitucion"
+        ,"L.Region"
+        ,"cast([FechaAsignacionReclamoOOPP] as date) FechaAsignacionReclamoOOPP"
+        ,"[NumLicOC]"
+        ,"[idReclamoCRM]"
+        ,"REPLACE(REPLACE(REPLACE([RespuestaOOPP], CHAR(13), ''), CHAR(10), ''),';',',') AS RespuestaOOPP"
+        ,"r.[orgCode]"
+        ,"r.[orgName]"
+        ,"[entCodeReclamante]"
+        ,"o.orgtaxid 'RUT_empresa'"
+        ,"cast([FechaRecepcionConforme] as date) FechaRecepcionConforme"
+      )
+      , from = "[DCCPReclamos].[dbo].[Reclamo] r"
+      , joins = list(
+        list(table ="[DCCPReclamos].[dbo].[Par_EstadoReclamo] er", condition ="er.idEstado=r.idEstado", type ="left join")
+        ,list(table = "[DCCPReclamos].[dbo].[Par_MotivoReclamo] mr", condition = "mr.idMotivoReclamo=r.idMotivoReclamo", type = "left join")
+        ,list(table = "[DCCPPlatform].[dbo].[gblOrganization] o", condition = "o.orgenterprise=r.entcodereclamante", type = "left join")
+        ,list(table = "[DCCPPlatform].dbo.gblOrganization as o2", condition = "r.orgCode = o2.orgCode collate Modern_Spanish_CI_AI", type = "left join")
+        ,list(table = "[estudios_procesamientodatosabiertos].[dbo].[DimComprador] as C", condition = "C.orgCode = o2.orgCode", type = "inner join")
+        ,list(table = "[estudios_procesamientodatosabiertos].[dbo].[DimInstitucion] as I", condition = "C.entCode = I.entCode", type = "inner join")
+        ,list(table = "[estudios_procesamientodatosabiertos].[dbo].[DimLocalidad] as L", condition = "C.IDLocalidadUnidaddeCompra = L.IDLocalidad", type = "inner join")
+        ,list(table = "[estudios_procesamientodatosabiertos].dbo.DimSector as S", condition = "I.IdSector = S.IdSector", type = "inner join")
+        ,list(table = "[DCCPReclamos].[dbo].[Par_TipoReclamo] tr", condition = "tr.idtiporeclamo=mr.idtiporeclamo", type = "left join")
+      )
+      , where = "cast([FechaIngresoReclamo] as date) BETWEEN ? AND ?"
+      , parameters = list(start_date = input$rcl_fecha[1], end_date = input$rcl_fecha[2]) 
+    )
     
     # Obtener la región seleccionada  para el panel de reclamos 
     if(input$rcl_region == "Todas las regiones") {
@@ -1435,33 +1492,11 @@ server <- function(input, output, session) {
       region_seleccionada <- input$rcl_region
     }
     
-    cat("La región seleccionada para el panel de reclamos es:\n"
-        ,"===========================================================\n"
-        , region_seleccionada
-        ,"\n ===========================================================\n")
-    
-    
-    # Obtener la Institución para el panel de transacciones
-    if(input$rcl_institucion == "Todas las instituciones") {
-      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
-      institucion_seleccionada <- NULL
-    } else {
-      institucion_seleccionada <- input$rcl_institucion
-    }
-    
-    
-    cat("La institucion seleccionada para el panel de transacciones es:\n"
-        ,institucion_seleccionada
-        ,"\n ===========================================================\n")
-    
-    
-    
-    # Obtener el sector seleccionado por el usuario
-    if(input$rcl_sector == "Todos los sectores") {
-      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
-      sector_seleccionado <- NULL
-    } else {
-      sector_seleccionado <- input$rcl_sector
+    # Agregar condición de región si no es "Todas las regiones"
+    if(!is.null(region_seleccionada)) {
+      rcl_query <- add_where(rcl_query, condition = "L.Region = ?")
+      
+      rcl_query <- add_parameter(rcl_query, name = "region_seleccionada", value = region_seleccionada)
     }
     
     # Obtener el rut seleccionado para el panel de transacciones
@@ -1472,82 +1507,47 @@ server <- function(input, output, session) {
       rut_seleccionado <- input$rut_rcl
     }
     
-    cat("El sector seleccionado para el panel de transacciones es:\n"
-        ,sector_seleccionado
-        ,"\n ===========================================================\n")
-    
-    # Query RECLAMOS ======================================================
-    
-    
-    rcl_query <- paste0(
-      "SELECT  [idReclamo]
-      		,er.NombreEstado
-      		,REPLACE(REPLACE(REPLACE(mr.NombreMotivoReclamo, CHAR(13), ''), CHAR(10), ''),';',',') AS NombreMotivoReclamo
-      		,tr.NombreTipoReclamo
-      		,cast([FechaIngresoReclamo] as date) FechaIngresoReclamo
-      		,[NombreReclamante] 
-      		,[RutReclamante]
-      		,REPLACE(REPLACE(REPLACE([DetalleReclamo], CHAR(13), ''), CHAR(10), ''),';',',') AS DetalleReclamo
-      		,[NombreOOPP]
-      		,C.[entCode] [entCode OOPP]
-      		,C.[RazonSocialUnidaddeCompra]
-      		,C.[RUTUnidaddeCompra]
-      		,S.Sector
-      		,I.NombreInstitucion
-      		,L.Region
-      		,cast([FechaAsignacionReclamoOOPP] as date) FechaAsignacionReclamoOOPP
-      		,[NumLicOC]
-      		,[idReclamoCRM]
-      		,REPLACE(REPLACE(REPLACE([RespuestaOOPP], CHAR(13), ''), CHAR(10), ''),';',',') AS RespuestaOOPP
-      		,r.[orgCode]
-      		,r.[orgName]
-      		,[entCodeReclamante]
-      		,o.orgtaxid 'RUT_empresa'
-      		,cast([FechaRecepcionConforme] as date) FechaRecepcionConforme                     
-      FROM [DCCPReclamos].[dbo].[Reclamo] r 
-      left join [DCCPReclamos].[dbo].[Par_EstadoReclamo] er on er.idEstado=r.idEstado 
-      left join [DCCPReclamos].[dbo].[Par_MotivoReclamo] mr on mr.idMotivoReclamo=r.idMotivoReclamo 
-      left join [DCCPPlatform].[dbo].[gblOrganization] o on o.orgenterprise=r.entcodereclamante 
-  		inner join [DCCPPlatform].dbo.gblOrganization as o2 on r.orgCode = o2.orgCode collate Modern_Spanish_CI_AI
-	  	inner join [estudios_procesamientodatosabiertos].[dbo].[DimComprador] as C on C.orgCode = o2.orgCode
-		  inner join [estudios_procesamientodatosabiertos].[dbo].[DimInstitucion] as I on C.entCode = I.entCode
-		  inner join [estudios_procesamientodatosabiertos].[dbo].[DimLocalidad] as L on C.IDLocalidadUnidaddeCompra = L.IDLocalidad
-		  inner join [estudios_procesamientodatosabiertos].dbo.DimSector as S on I.IdSector = S.IdSector
-      left join [DCCPReclamos].[dbo].[Par_TipoReclamo] tr on tr.idtiporeclamo=mr.idtiporeclamo
-      WHERE  cast([FechaIngresoReclamo] as date) BETWEEN '", input$rcl_fecha[1], "' AND '", input$rcl_fecha[2], "'"
-    )
-    
-    # Agregar condición de región si no es "Todas las regiones"
-    if(!is.null(region_seleccionada)) {
-      rcl_query <- paste0(rcl_query, " AND L.Region = '", region_seleccionada, "'")
-    }
-    
     # Agregar condición de RUT si el campo no es nulo
     if(!is.null(rut_seleccionado)) {
-      rcl_query <- paste0(rcl_query, " AND C.[RUTUnidaddeCompra] = '", rut_seleccionado, "'")
+      rcl_query <- add_where(rcl_query, condition = "C.[RUTUnidaddeCompra] = ?")
+      
+      rcl_query <- add_parametr(rcl_query, name = "rut_seleccionado", value = rut_seleccionado)
     }
     
+    # Obtener la Institución para el panel de transacciones
+    if(input$rcl_institucion == "Todas las instituciones") {
+      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+      institucion_seleccionada <- NULL
+    } else {
+      institucion_seleccionada <- input$rcl_institucion
+    }
     
     # Agregar condición de institución si no es "Todas las instituciones"
     if(!is.null(institucion_seleccionada)) {
-      rcl_query <- paste0(rcl_query, " AND I.NombreInstitucion = '", institucion_seleccionada, "'")
+      rcl_query <- add_where(rcl_query, condition = "I.NombreInstitucion = ?")
+      
+      rcl_query <- add_parameter(rcl_query, name = "institucion_seleccionada", value = institucion_seleccionada)
     }
-    #rowser()
     
-    
+    # Obtener el sector seleccionado por el usuario
+    if(input$rcl_sector == "Todos los sectores") {
+      # Si se selecciona "Todas las procedencias", no se aplica filtro por procedencia en la consulta SQL
+      sector_seleccionado <- NULL
+    } else {
+      sector_seleccionado <- input$rcl_sector
+    }
     # Agregar condición de sector si no es "Todos los sectores"
     if(!is.null(sector_seleccionado)) {
-      rcl_query <- paste0(rcl_query, " AND S.Sector = '", sector_seleccionado, "'")
+      rcl_query <- add_where(rcl_query, condition = "S.Sector = ?")
     }
     
-    cat("La Query es la siguiente:"
-        ,"\n ==============================================================\n\n"
-        ,rcl_query
-        ,"\n ==============================================================\n\n"
-        ,"\n ==============================================================\n\n"
-        ,"\n ==============================================================\n\n")
+    print(str(rcl_query))
     
-    rcl_consulta(rcl_query)
+    final_rcl_query <- build(rcl_query)
+    
+    rcl_consulta_string(final_rcl_query$query_string)
+    
+    rcl_consulta_parameters(final_rcl_query$parameters)
     
     
     # Realizar la consulta solo cuando se presiona el botón "Consultar"
@@ -1557,7 +1557,9 @@ server <- function(input, output, session) {
     
     # Realizar una preconsulta rápida para obtener el número de filas
     num_filas <- withProgress(message = "Realizando preconsulta rápida...", value = 0, {
-      sqlQuery(con2, paste("SELECT COUNT(*) AS NumFilas FROM (", rcl_query, ") AS SubConsulta"))
+      dbGetQuery(con5
+                 , paste("SELECT COUNT(*) AS NumFilas FROM (", final_rcl_query$query_string, ") AS SubConsulta")
+                 , params = final_rcl_query$parameters)
     })
     
     # Obtener el número de filas desde el resultado de la preconsulta
@@ -1588,30 +1590,33 @@ server <- function(input, output, session) {
     } else {
       # Si el número de filas es mayor que cero pero menor o igual al umbral, ejecutar la consulta completa y mostrar los datos
       resultado <- withProgress(message = "Realizando consulta a la base de datos", value = 0, {
-        sqlQuery(con2, rcl_consulta())
+        dbGetQuery(con5, rcl_consulta_string(), params = rcl_consulta_parameters())
       })
       reclamos_consultados(resultado)
       updateActionButton(session, "consultar", label = "Consultar", icon = icon("search"))
+      
+      
     }
     
-    
+    hidePageSpinner()
   })
   
   # Botón para confirmar consulta de RECLAMOS ========================================================
   observeEvent(input$rcl_confirmar_btn, {
     # Ocultar la ventana emergente
     removeModal()
+    showPageSpinner()
     
     # Ejecuta la consulta completa 
     resultado <- withProgress(message = "Realizando consulta a la base de datos", value = 0, {
-      sqlQuery(con2, rcl_consulta())
+      dbGetQuery(con5, rcl_consulta_string(), params = rcl_consulta_parameters())
     })
     reclamos_consultados(resultado)
     updateActionButton(session, "rcl_consultar_btn", label = "Consultar", icon = icon("search"))
     
-    cat("Realizando consulta a la base de datos. \n\n\n"
-        ,str(resultado)
-        ,"========================================================================= \n\n\n")
+    hidePageSpinner()
+    
+
   })
   
   # Renderiza resultados de Transacciones ======================================== 
