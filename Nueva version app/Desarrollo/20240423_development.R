@@ -518,9 +518,9 @@ server <- function(input, output, session) {
     # Actualiza el estado del panel condicional
     output$detalle_rubro <- renderUI({
       if (input$detalle) {
-          selectInput("select_rubro", "Selecciona un rubro:",
-                      choices = c("Todos los rubros", rubros_disponibles$Rubro),
-                      selected = "Todos los rubros")
+        selectInput("select_rubro", "Selecciona un rubro:",
+                    choices = c("Todos los rubros", rubros_disponibles$Rubro),
+                    selected = "Todos los rubros")
       } else {
         NULL
       }
@@ -662,7 +662,7 @@ server <- function(input, output, session) {
       region_seleccionada <- input$region
     }
     
-  
+    
     
     # Obtener la región seleccionada por el usuario
     if(input$comuna == "Todas las comunas") {
@@ -734,7 +734,7 @@ server <- function(input, output, session) {
       rubro_seleccionado <- NULL
     }
     
-
+    
     print(input$detalle_cm)
     
     
@@ -759,7 +759,7 @@ server <- function(input, output, session) {
     
     
     
-   
+    
     
     
     cat("El sector seleccionado para el panel de transacciones es:\n"
@@ -833,7 +833,67 @@ server <- function(input, output, session) {
         ,"\n ===========================================================\n")
     
     # Query TRANSACCIONES ======================================================
-    # 
+    
+    QueryBuilder <- function(){
+      query <- list(
+        select = 'SELECT',
+        fields = c(),
+        from = NULL,
+        where = NULL,
+        joins = list(),
+        parameters = list()
+      )
+      
+      # Método para agregar campos a seleccionar
+      query$add_select_fields <- function(...) {
+        query$fields <- c(query$fields, ...)
+        return(query)
+      }
+      
+      # Método para definir la tabla principal
+      query$set_from <- function(table) {
+        query$from <- table
+        return(query)
+      }
+      
+      # Método para agregar condiciones WHERE
+      query$add_where <- function(condition) {
+        if (is.null(query$where)) {
+          query$where <- condition
+        } else {
+          query$where <- paste(query$where, "AND", condition)
+        }
+        return(query)
+      }
+      
+      # Método para agregar joins
+      query$add_join <- function(table, condition, type = "INNER") {
+        query$joins <- c(query$joins, list(table = table, condition = condition, type = type))
+        return(query)
+      }
+      
+      # Método para agregar parámetros
+      query$add_parameter <- function(name, value) {
+        query$parameters[[name]] <- value
+        return(query)
+      }
+      
+      # Método para generar la consulta final
+      query$build <- function() {
+        query_string <- paste(query$select, paste(query$fields, collapse = ", "), "FROM", query$from)
+        if (length(query$joins) > 0) {
+          for (join in query$joins) {
+            query_string <- paste(query_string, join$type, join$table, "ON", join$condition)
+          }
+        }
+        if (!is.null(query$where)) {
+          query_string <- paste(query_string, "WHERE", query$where)
+        }
+        return(list(query_string = query_string, parameters = query$parameters))
+      }
+      
+      return(query)
+    }
     
     
     
@@ -906,7 +966,7 @@ server <- function(input, output, session) {
         NULL
       }
     }
-
+    
     
     query <- paste0(query,",(CASE  WHEN OC.porisintegrated=3 THEN 'Compra Agil'
                 ELSE (CASE  OC.IDProcedenciaOC
@@ -1020,7 +1080,7 @@ server <- function(input, output, session) {
       query <- paste0(query, " AND S.Sector = '", sector_seleccionado, "'")
     }
     
-   
+    
     
     # Agregar condición de sector si no es "Todos los sectores"
     if(!is.null(rubro_seleccionado)) {
@@ -1058,7 +1118,7 @@ server <- function(input, output, session) {
     
     consulta_(query)
     
-   
+    
     
     # Realizar la consulta solo cuando se presiona el botón "Consultar"
     req(input$consultar_btn)  # Espera a que se presione el botón "Consultar"
@@ -1122,7 +1182,7 @@ server <- function(input, output, session) {
     resultado <- withProgress(message = "Realizando consulta a la base de datos", value = 0, {
       sqlQuery(con3, consulta_())
       
-     
+      
     })
     
     # MODIFICA Columnas de tipo carácter para eliminar los molestos ; ==================================================
