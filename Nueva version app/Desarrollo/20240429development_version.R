@@ -299,7 +299,7 @@ server <- function(input, output, session) {
   observe({
     # Obtener las procedencias disponibles
     procedencias_disponibles <<- unique(dbGetQuery(con4, 
-                                                 "SELECT DISTINCT 
+                                                   "SELECT DISTINCT 
             CASE OC.porisintegrated 
               WHEN 3 THEN 'Compra Agil'
               ELSE (CASE  OC.IDProcedenciaOC
@@ -786,7 +786,7 @@ server <- function(input, output, session) {
                                  ,"RU.RubroN1 [Rubro Producto]"
                                  ,"REPLACE(REPLACE(REPLACE(OL.NombreItem, CHAR(13), ''), CHAR(10), ''),';',',') AS [Nombre producto]"
                                  ,"CAST(OL.DescripcionItem AS TEXT) AS DescripcionItem"
-                                 )
+      )
       
       query <- add_join(query
                         , table = '[DM_Transaccional].[dbo].[THOrdenesCompraLinea] as OL'
@@ -805,11 +805,11 @@ server <- function(input, output, session) {
     
     if (input$prv_detalle){
       query <- add_select_fields(query, 
-           "REPLACE(REPLACE(REPLACE(UPPER(P.RazonSocialSucursal), CHAR(13), ''), CHAR(10), ''),';',',') AS [Razón social Proveedor]"
-           ,"E.entCode [entCode (Proveedor)]"
-           ,"P.RUTSucursal [Rut Proveedor]"
-           ,"L2.Region [Región Proveedor]"
-           ,"DTP.Tamano [Tamaño Proveedor]"
+                                 "REPLACE(REPLACE(REPLACE(UPPER(P.RazonSocialSucursal), CHAR(13), ''), CHAR(10), ''),';',',') AS [Razón social Proveedor]"
+                                 ,"E.entCode [entCode (Proveedor)]"
+                                 ,"P.RUTSucursal [Rut Proveedor]"
+                                 ,"L2.Region [Región Proveedor]"
+                                 ,"DTP.Tamano [Tamaño Proveedor]"
       )
       
       query <- add_join(query
@@ -985,7 +985,7 @@ server <- function(input, output, session) {
     } else {
       sector_seleccionado <- input$sector
     }
-
+    
     # Agregar condición de sector si no es "Todos los sectores"
     if(!is.null(sector_seleccionado)) {
       query <- add_where(query, condition = "S.Sector = ?")
@@ -1166,7 +1166,7 @@ server <- function(input, output, session) {
     
     print(consulta_parameters())
     
-  
+    
     
     showPageSpinner()
     # Ejecuta la consulta completa 
@@ -1263,18 +1263,18 @@ server <- function(input, output, session) {
         ,"OC.MontoCLF+OC.ImpuestoCLF [Monto Bruto CLF]"
         ,"OC.MontoUSD+OC.ImpuestoUSD [Monto Bruto USD]"
       )
-    ,from = "[DM_Transaccional].[dbo].[THOrdenesCompra] as OC"
-    ,joins = list(
-      list(table ="[DM_Transaccional].[dbo].DimUsuario as U", condition = "OC.usrID = U.usrID", type = "LEFT JOIN")
-      ,list(table ="[DM_Transaccional].[dbo].[DimTiempo] as T", condition ="OC.IDFechaEnvioOC = T.DateKey", type = "INNER JOIN")
-      ,list(table ="[DM_Transaccional].[dbo].[DimComprador] as C", condition ="OC.IDUnidaddeCompra = C.IDUnidaddeCompra", type ="LEFT JOIN")
-      ,list(table = "[DM_Transaccional].[dbo].[DimLocalidad] as L", condition = "L.IDLocalidad = C.IDLocalidadUnidaddeCompra", type = "LEFT JOIN")
-      ,list(table = "[DM_Transaccional].[dbo].[DimInstitucion] as I", condition = "C.entCode = I.entCode", type = "LEFT JOIN")
-      ,list(table = "[DM_Transaccional].[dbo].[DimSector] as S", condition = "I.IdSector = S.IdSector", type = "LEFT JOIN")
-    )
-    , where = "OC.IDFechaEnvioOC BETWEEN ? AND ?"
-    ,parameters = list(start_date = gsub("-","", input$fecha[1])
-                       ,end_date = gsub("-","", input$fecha[2]))
+      ,from = "[DM_Transaccional].[dbo].[THOrdenesCompra] as OC"
+      ,joins = list(
+        list(table ="[DM_Transaccional].[dbo].DimUsuario as U", condition = "OC.usrID = U.usrID", type = "LEFT JOIN")
+        ,list(table ="[DM_Transaccional].[dbo].[DimTiempo] as T", condition ="OC.IDFechaEnvioOC = T.DateKey", type = "INNER JOIN")
+        ,list(table ="[DM_Transaccional].[dbo].[DimComprador] as C", condition ="OC.IDUnidaddeCompra = C.IDUnidaddeCompra", type ="LEFT JOIN")
+        ,list(table = "[DM_Transaccional].[dbo].[DimLocalidad] as L", condition = "L.IDLocalidad = C.IDLocalidadUnidaddeCompra", type = "LEFT JOIN")
+        ,list(table = "[DM_Transaccional].[dbo].[DimInstitucion] as I", condition = "C.entCode = I.entCode", type = "LEFT JOIN")
+        ,list(table = "[DM_Transaccional].[dbo].[DimSector] as S", condition = "I.IdSector = S.IdSector", type = "LEFT JOIN")
+      )
+      , where = "OC.IDFechaEnvioOC BETWEEN ? AND ?"
+      ,parameters = list(start_date = gsub("-","", input$fecha[1])
+                         ,end_date = gsub("-","", input$fecha[2]))
     ) 
     
     # Obtener la región seleccionada por el usuario
@@ -1360,7 +1360,7 @@ server <- function(input, output, session) {
     }
     
     print(str(usr_query))
-
+    
     final_usr_query <- build(usr_query)
     
     usr_consulta_string(final_usr_query$query_string)
@@ -1402,7 +1402,7 @@ server <- function(input, output, session) {
       # Si el número de filas es mayor que cero pero menor o igual al umbral, ejecutar la consulta completa y mostrar los datos
       resultado <- withProgress(message = "Realizando consulta a la base de datos", value = 0, {
         dbGetQuery(con4
-                 , usr_consulta_string(), params = usr_consulta_parameters())
+                   , usr_consulta_string(), params = usr_consulta_parameters())
       })
       compradores_consultados(resultado)
       updateActionButton(session, "consultar", label = "Consultar", icon = icon("search"))
@@ -1617,7 +1617,7 @@ server <- function(input, output, session) {
     
     hidePageSpinner()
     
-
+    
   })
   
   # Renderiza resultados de Transacciones ======================================== 

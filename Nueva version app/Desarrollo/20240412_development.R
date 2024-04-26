@@ -1251,7 +1251,7 @@ server <- function(input, output, session) {
     
     usr_query <- paste0(
       "SELECT  DISTINCT
-        T.Year
+    T.Year
 		,U.Nombres+' '+U.Apellidos [Nombre completo]
 		,U.RUT [Rut usuario]
 		,U.Sexo [Sexo usuario]
@@ -1272,10 +1272,10 @@ server <- function(input, output, session) {
                 END)
         END AS Procedencia
 		,T.Date [Fecha envío OC]
-		,OC.CodigoOC
-		,OC.MontoCLP+OC.ImpuestoCLP [Monto Bruto CLP]
-		,OC.MontoCLF+OC.ImpuestoCLF [Monto Bruto CLF]
-		,OC.MontoUSD+OC.ImpuestoUSD [Monto Bruto USD]
+		,COUNT(DISTINCT OC.CodigoOC) [Cantidad Órdenes de Compra]
+		,SUM(OC.MontoCLP+OC.ImpuestoCLP) [Monto Bruto CLP]
+		,SUM(OC.MontoCLF+OC.ImpuestoCLF) [Monto Bruto CLF]
+		,SUM(OC.MontoUSD+OC.ImpuestoUSD) [Monto Bruto USD]
 		--------------------------------------------------------------------------------------------------------------------------------------------------
 		--------------------------------------------------------------------------------------------------------------------------------------------------
         FROM [DM_Transaccional].[dbo].[THOrdenesCompra] as OC 
