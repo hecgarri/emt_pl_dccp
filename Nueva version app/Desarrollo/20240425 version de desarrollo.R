@@ -17,11 +17,9 @@ library(RODBC)
 # Establece conexiones a los diferentes servidores
 # Conexión a la base de datos ========================
 
-con3 <- RODBC::odbcConnect("dw", uid = "datawarehouse", pwd = "datawarehouse")  
 
 con4 <- dbConnect(odbc(), Driver = "ODBC Driver 17 for SQL Server", Server = "10.34.71.202", UID = "datawarehouse", PWD = "datawarehouse")
 
-con2 <- RODBC::odbcConnect("aq", uid = "datawarehouse", pwd = "datawarehouse")
 
 con5 <- dbConnect(odbc(), Driver = "ODBC Driver 17 for SQL Server", Server = "10.34.71.146\\AQUILES_CONSULTA",UID = "datawarehouse", PWD = "datawarehouse")
 
@@ -403,18 +401,21 @@ server <- function(input, output, session) {
                       FROM [DM_Transaccional].[dbo].[DimInstitucion] AS I 
                       INNER JOIN [DM_Transaccional].[dbo].[DimComprador] AS C ON I.entCode = C.entCode
                       INNER JOIN [DM_Transaccional].[dbo].[DimLocalidad] AS L ON C.IDLocalidadUnidaddeCompra = L.IDLocalidad"
+      
+      institucion_disponibles <<- dbGetQuery(con4, consulta_instituciones)
     } else {
       consulta_instituciones <- paste0("SELECT DISTINCT 
                             UPPER([NombreInstitucion]) AS NombreInstitucion
                             FROM [DM_Transaccional].[dbo].[DimInstitucion] AS I 
                             INNER JOIN [DM_Transaccional].[dbo].[DimComprador] AS C ON I.entCode = C.entCode
                             INNER JOIN [DM_Transaccional].[dbo].[DimLocalidad] AS L ON C.IDLocalidadUnidaddeCompra = L.IDLocalidad
-                            WHERE L.Region = '", region_seleccionada, "'")
+                            WHERE L.Region = ?")
+      
+      institucion_disponibles <<- dbGetQuery(con4, consulta_instituciones, params = region_seleccionada)
     }
     
-    cat(consulta_instituciones)
     
-    institucion_disponibles <<- sqlQuery(con3, consulta_instituciones)
+    
     
   })
   
