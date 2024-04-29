@@ -48,5 +48,9 @@ mbm <- microbenchmark(
   ,times = 100
 )
 
+
 resumen <- summary(mbm)
+
+summary(mbm)
+
 
